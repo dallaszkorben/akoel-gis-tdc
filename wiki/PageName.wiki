@@ -1,0 +1,12 @@
+#summary One-sentence summary of this page.
+
+= TDC =
+
+*CCDM* magyarországi, szűkitett implementációját tüzte ki céljául a project.<br>
+
+= Hasznalt eszközök =
+
+  * Mapserver<br>
+  * PostgreSQL<br>
+  * PostGIS<br>
+  * OpenLayers<br>
