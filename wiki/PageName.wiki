@@ -1,8 +1,13 @@
-#summary One-sentence summary of this page.
-
 = TDC =
 
-*CCDM* magyarországi, szűkitett implementációját tüzte ki céljául a project.<br>
+A *CCDM* magyarországi, szűkitett implementációját tüzte ki céljául a project.<br>
+
+= Feladatok =
+  *A felhasználandó eszközök beszerzése
+  *A felhasználandó eszközök megismerése
+  *A megvalósítandó terület lehatárolása a CCDM-ről
+  *Adatbázis-model kidolgozása
+  *Adatbázis-model létrehozása
 
 = Hasznalt eszközök =
 
