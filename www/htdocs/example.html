@@ -1,0 +1,151 @@
+<!-- MapServer Template -->
+<html>
+<head>
+    <title>MapServer 5.x Tutorial</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+
+
+    <script src="/tdc/proj4js/lib/proj4js.js"></script>
+    <script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
+    <script type="text/javascript">
+
+	// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
+	Proj4js.defs["EPSG:2370"] = "+title=Hungarian EOV EPSG:2370 +proj=somerc +lat_0=47.14439372222222 +lon_0=19.04857177777778 +x_0=650000 +y_0=200000 +ellps=GRS67 +datum=HD72 +towgs84=57.01,-69.97,-9.29 +units=m +no_defs"
+
+	//Vetuletek
+	var wgs84=new OpenLayers.Projection('EPSG:4326');
+	var hd72=new OpenLayers.Projection('EPSG:2370');
+
+	var map;
+	var popup;
+	var borderLayer;
+	
+	function init() {
+	    //-------------
+	    // MAP objektum
+	    //-------------
+	    map = new OpenLayers.Map('mapDiv',
+	    {
+	        projection: "EPSG:2370",
+	        maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000),
+	        maxResolution: 910,
+	        units: "m"
+	    });
+
+	    //---------
+	    // Controls
+	    //---------
+	    map.addControl(new OpenLayers.Control.OverviewMap());
+	    map.addControl(new OpenLayers.Control.LayerSwitcher());
+	    //pozicio Control
+	    var posControl = new OpenLayers.Control.MousePosition(
+			{'numDigits':2, 'displayProjection': new OpenLayers.Projection("EPSG:4326"), 'emptyString':''});
+	    map.addControl( posControl );
+	    
+	    //---------
+	    // Layer-ek
+	    //---------
+
+	    //Orszaghatar layer
+	    borderLayer = new OpenLayers.Layer.WMS(
+			"Orszaghatar",
+            "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+            {
+            	    layers: ['border'],
+            	    format: 'image/png'
+            }
+        );
+	    map.addLayers([borderLayer]);
+	    
+	    //---------------
+	    // Esemenykezeles
+	    //---------------
+	    
+	    //Klikkeles eseten pozicio megjelenitese
+	    map.events.register("click", map, 
+	    	function(e){
+	        
+	        	//Pozicio az ablak koordinata rendszereben
+	        	var pxPos=map.events.getMousePosition(e);
+	        
+				//Pozicio az aktuális vetületi rendszerben
+	        	var projPos=map.getLonLatFromPixel(pxPos);
+	        
+	        	//Pozicio wgs84 foldrajzi koordinatarendszerben
+	        	var wgs84Pos=projPos.clone().transform(hd72,wgs84);
+	        
+	        	//Ellenorzeskepp visszaszamolun. termeszetesen ez nem kell
+	        	var eovPos=projPos.clone().transform(hd72,hd72);
+	                
+			document.getElementById('posDiv').innerHTML="Page position: " + pxPos + "<br>" + "EOV: " + projPos + "<br>" + "WGS84: " + wgs84Pos + "<br>" + "hd72: " + eovPos;
+	    	}
+	    );
+
+
+		//--------------
+		// Feature info
+		//--------------
+		map.events.register( "click", map, function(e){
+			var url=borderLayer.getFullRequestString({
+                      REQUEST: "GetFeatureInfo",
+                      EXCEPTIONS: "application/vnd.ogc.se_xml",
+                      FORMAT: 'png',
+                      BBOX: map.getExtent().toBBOX(),
+                      X: e.xy.x,
+                      Y: e.xy.y,
+                      INFO_FORMAT: 'text/html',
+                      QUERY_LAYERS: "border",
+                      FEATURE_COUNT: 5,
+                      WIDTH: map.size.w,
+                      HEIGHT: map.size.h
+            });
+			OpenLayers.Request.POST({ url: url, callback: function(response){ setHTML(response, e.xy )}});			
+		});
+
+	    //Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
+	    map.zoomToMaxExtent();
+	    
+	    //Pozicio div torlese
+	    document.getElementById('posDiv').innerHTML="Page position:<br>" + "EOV:<br>" + "WGS84:<br>" + "hd72:";
+	   
+	   
+	};
+	
+
+	function setHTML(response, xy){
+		
+		//Ha mar van nyitva popup, akkor azt lezarja
+		if( popup ){
+			map.removePopup(popup);
+		}
+							
+		//Letrehozza a popup-ot							
+		popup = new OpenLayers.Popup.FramedCloud(
+                        "chick", 
+                        map.getLonLatFromPixel( xy ),
+                        new OpenLayers.Size(100,300),
+                        response.responseText,
+                        null,
+                        true,
+                        null
+                   );
+
+		//Elhelyezi a buborekot-a terkepen
+		map.addPopup( popup );
+	
+	}
+
+
+    </script>
+
+</head>
+
+<body onLoad="init()"  bgcolor="#FFFFAA" text="#000000">
+
+    <div id="posDiv"></div>
+
+    <div id="mapDiv" style="width:600px; height:350px; background:red" ></div>
+
+</body>
+</html>
+
