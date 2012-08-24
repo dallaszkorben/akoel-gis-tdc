@@ -39,8 +39,11 @@
 	    map.addControl(new OpenLayers.Control.LayerSwitcher());
 	    //pozicio Control
 	    var posControl = new OpenLayers.Control.MousePosition(
-			{'numDigits':2, 'displayProjection': new OpenLayers.Projection("EPSG:4326"), 'emptyString':''});
+			{'numDigits':2, 'displayProjection': hd72, 'emptyString':''});
 	    map.addControl( posControl );
+	    
+	    var scaleControl = new OpenLayers.Control.Scale();
+	    map.addControl( scaleControl);
 	    
 	    //---------
 	    // Layer-ek
@@ -49,7 +52,7 @@
 	    //Orszaghatar layer
 	    borderLayer = new OpenLayers.Layer.WMS(
 			"Orszaghatar",
-            "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+	      "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
             {
             	    layers: ['border'],
             	    format: 'image/png'
@@ -61,14 +64,16 @@
 	    // Esemenykezeles
 	    //---------------
 	    
-	    //Klikkeles eseten pozicio megjelenitese
+	    //---------------------
+	    //Pozicio megjelenitese
+	    //---------------------
 	    map.events.register("click", map, 
 	    	function(e){
 	        
 	        	//Pozicio az ablak koordinata rendszereben
 	        	var pxPos=map.events.getMousePosition(e);
 	        
-				//Pozicio az aktuális vetületi rendszerben
+			//Pozicio az aktuális vetületi rendszerben
 	        	var projPos=map.getLonLatFromPixel(pxPos);
 	        
 	        	//Pozicio wgs84 foldrajzi koordinatarendszerben
@@ -94,7 +99,7 @@
                       X: e.xy.x,
                       Y: e.xy.y,
                       INFO_FORMAT: 'text/html',
-                      QUERY_LAYERS: "border",
+                      QUERY_LAYERS: "telek",
                       FEATURE_COUNT: 5,
                       WIDTH: map.size.w,
                       HEIGHT: map.size.h
@@ -145,6 +150,8 @@
     <div id="posDiv"></div>
 
     <div id="mapDiv" style="width:600px; height:350px; background:red" ></div>
+    
+<br>    <div id="scaleDiv"></div>
 
 </body>
 </html>
