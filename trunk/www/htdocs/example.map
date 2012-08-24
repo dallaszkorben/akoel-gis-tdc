@@ -15,6 +15,7 @@ MAP
     IMAGEURL  '/tdc/htdocs/tmp/'
     
     METADATA
+	"ows_enable_request" "*"
         "wms_title"		"Sajat WMS szerverem"
         "wms_olineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
         "wms_srs"		"EPSG:23700"
@@ -24,7 +25,7 @@ MAP
 
   PROJECTION
     "init=epsg:2370"
-  END # This is the ending of the output projection
+  END
 
   # Start of legend
   LEGEND
@@ -53,43 +54,65 @@ MAP
   END # Scalebar object ends
   
   
-LAYER
-		NAME "border"					#layer neve
-		
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=postgres user=postgres dbname=tdc-basic"
-		DATA "the_geom from border"
-		STATUS DEFAULT
-		TYPE LINE
-		TOLERANCE 100
-		
-		PROJECTION
-		    "init=epsg:2370"
-		END
-
-		#Lekerdezes fejlece
-		HEADER 'templates/header.html'
-
-		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/temp.html'
-		
-		#Lekerdezes tablazatanak lezarasa
-		FOOTER 'templates/footer.html'
-			
-		CLASS
-			COLOR 0 0 255				#piros szinu
-			SYMBOL 'circle'
-			SIZE 4						#2 pixel vastag vonal
-			EXPRESSION( %myid% )
-		END
-
-		CLASS
-			COLOR 255 0 0				#piros szinu
-			SYMBOL 'circle'
-			SIZE 2						#2 pixel vastag vonal			
-			
-		END
+  LAYER
+    NAME "telek"
+    CONNECTIONTYPE postgis
+    CONNECTION "host=localhost password=postgres user=postgres dbname=tdc"
+    DATA "topo_geom from public.telek"
+    STATUS DEFAULT
+    TYPE LINE
+    TOLERANCE 100
+	
+    PROJECTION
+      "init=epsg:2370"
     END
+
+    #Lekerdezes fejlece
+    HEADER 'templates/header.html'
+
+    #Lekerdezeshez szukseges tempalte fajl, specialis formaban
+    TEMPLATE 'templates/temp.html'
+		
+    #Lekerdezes tablazatanak lezarasa
+    FOOTER 'templates/footer.html'
+			
+#    CLASS
+#      COLOR 0 0 255				#piros szinu
+#      SYMBOL 'circle'
+#      SIZE 4						#2 pixel vastag vonal
+#      EXPRESSION( %myid% )
+#    END
+
+    CLASS
+#	COLOR 0 0 2
+#      SYMBOL 'circle'
+#      SIZE 12
+#      MAXSCALEDENOM 650000
+      STYLE
+	COLOR 0 0 255
+	WIDTH 10
+      END
+    END
+  END
+
+  LAYER
+    NAME "border"					#layer neve
+    DATA border
+    STATUS DEFAULT
+    TYPE LINE
+	
+    FILTER "1=1"
+    PROJECTION
+      "init=epsg:2370"
+    END
+		
+    CLASS
+      COLOR 0 255 0				
+      SYMBOL 'circle'
+      SIZE 1						#2 pixel vastag vonal
+    END
+  END
+
 
 
  # End of LAYER DEFINITIONS -------------------------------
