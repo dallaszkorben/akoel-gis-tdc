@@ -57,15 +57,16 @@ MAP
   LAYER
     NAME "telek"
     CONNECTIONTYPE postgis
-    CONNECTION "host=localhost password=postgres user=postgres dbname=tdc"
-    DATA "topo_geom from public.telek"
+    CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+    DATA "topo_geom from parcel_view"
+#    DATA "the_geom from parcel"
     STATUS DEFAULT
-    TYPE LINE
+    TYPE POLYGON
     TOLERANCE 100
 	
-    PROJECTION
-      "init=epsg:2370"
-    END
+#    PROJECTION
+#      "init=epsg:2370"
+#    END
 
     #Lekerdezes fejlece
     HEADER 'templates/header.html'
