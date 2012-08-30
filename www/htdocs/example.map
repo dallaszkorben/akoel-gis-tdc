@@ -1,31 +1,32 @@
 MAP
-  NAME           EX2_
-  IMAGETYPE      png24
-  EXTENT         419500 24000 945000 365925 
-  SIZE           600 350
-  SHAPEPATH      "../data"
-  SYMBOLSET      "../symbols/symbols35.sym"
-  FONTSET        "../fonts/fonts.list"
+	NAME           EX2_
+	IMAGETYPE      png24
+	#EXTENT         419500 24000 945000 365925
+	EXTENT 645407 227808 645670 227959
+	SIZE           600 350
+	SHAPEPATH      "../data"
+	SYMBOLSET      "../symbols/symbols35.sym"
+	FONTSET        "../fonts/fonts.list"
 
-  TEMPLATEPATTERN 'example*'
+	TEMPLATEPATTERN 'example*'
 
-  WEB
-    TEMPLATE  'to be replaced by map_web_template variable in section2.html'
-    IMAGEPATH '/home/akoel/Projects/tdc/svn/www/htdocs/tmp/'
-    IMAGEURL  '/tdc/htdocs/tmp/'
+	WEB
+		TEMPLATE  'to be replaced by map_web_template variable in section2.html'
+		IMAGEPATH '/home/akoel/Projects/tdc/svn/www/htdocs/tmp/'
+		IMAGEURL  '/tdc/htdocs/tmp/'
     
-    METADATA
-	"ows_enable_request" "*"
-        "wms_title"		"Sajat WMS szerverem"
-        "wms_olineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
-        "wms_srs"		"EPSG:23700"
-        "wms_feature_info_mime_type" "text/html"
-    END
-  END 
+		METADATA
+			"ows_enable_request" "*"
+			"wms_title"		"Sajat WMS szerverem"
+			"wms_olineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
+			"wms_srs"		"EPSG:23700"
+			"wms_feature_info_mime_type" "text/html"
+		END
+	END 
 
-  PROJECTION
-    "init=epsg:2370"
-  END
+	PROJECTION
+		"init=epsg:2370"
+	END
 
   # Start of legend
   LEGEND
@@ -52,49 +53,118 @@ MAP
     TRANSPARENT FALSE
     STATUS ON
   END # Scalebar object ends
-  
-  
+
+
+	LAYER
+
+#		METADATA
+#			pexp_validation_pattern '^[0-9]+$'
+#		END
+
+		VALIDATION
+			"pexp"  "^[0-9]+$"
+		END
+
+		 NAME "parcel"
+		 CONNECTIONTYPE postgis
+		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+# DATA "topo_geom from parcel_view"
+		DATA "the_geom from parcel"
+		 STATUS DEFAULT
+		TYPE POLYGON
+		TOLERANCE 1
+	
+
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		#Lekerdezes fejlece
+		HEADER 'templates/parcel_header.html'
+
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/parcel_temp.html'
+		
+		#Lekerdezes tablazatanak lezarasa
+		FOOTER 'templates/parcel_footer.html'
+
+		#Kiemelt elemek		
+		CLASSITEM "id"	
+		CLASS
+			NAME "highlited"
+#		EXPRESSION  "%pexp%"  
+#		EXPRESSION  "20"
+		EXPRESSION ([id]<=6)
+			STYLE
+				COLOR 30 30 155
+			END
+			STYLE
+				OUTLINECOLOR 230 140 50
+				WIDTH 3
+			END
+		END #class
+
+		CLASS
+			NAME "normal"
+			STYLE
+				COLOR 100 100 255
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+		END #class
+	END #layer
+
+
+
+
   LAYER
-    NAME "telek"
+    NAME "building"
     CONNECTIONTYPE postgis
     CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-    DATA "topo_geom from parcel_view"
-#    DATA "the_geom from parcel"
+#    DATA "topo_geom from parcel_view"
+    DATA "the_geom from building"
     STATUS DEFAULT
     TYPE POLYGON
-    TOLERANCE 100
+    TOLERANCE 1
 	
-#    PROJECTION
-#      "init=epsg:2370"
-#    END
+    PROJECTION
+      "init=epsg:2370"
+    END
 
     #Lekerdezes fejlece
-    HEADER 'templates/header.html'
+    HEADER 'templates/building_header.html'
 
     #Lekerdezeshez szukseges tempalte fajl, specialis formaban
-    TEMPLATE 'templates/temp.html'
+    TEMPLATE 'templates/building_temp.html'
 		
     #Lekerdezes tablazatanak lezarasa
-    FOOTER 'templates/footer.html'
-			
-#    CLASS
-#      COLOR 0 0 255				#piros szinu
-#      SYMBOL 'circle'
-#      SIZE 4						#2 pixel vastag vonal
-#      EXPRESSION( %myid% )
-#    END
+    FOOTER 'templates/building_footer.html'
+
+    #
+    # Kiemelt elem
+    #			
 
     CLASS
-#	COLOR 0 0 2
-#      SYMBOL 'circle'
-#      SIZE 12
-#      MAXSCALEDENOM 650000
-      STYLE
-	COLOR 0 0 255
-	WIDTH 10
-      END
-    END
-  END
+	NAME "normal"
+	STYLE
+		COLOR 100 255 100
+	END
+	STYLE
+		OUTLINECOLOR 0 0 0
+		WIDTH 1
+	END
+    END #class
+
+  END #layer
+
+  
+  
+
+
+
 
   LAYER
     NAME "border"					#layer neve
@@ -106,13 +176,13 @@ MAP
     PROJECTION
       "init=epsg:2370"
     END
-		
-    CLASS
-      COLOR 0 255 0				
-      SYMBOL 'circle'
-      SIZE 1						#2 pixel vastag vonal
-    END
-  END
+	CLASS
+		STYLE
+			COLOR 0 255 0
+			WIDTH 1
+		END
+	END
+  END #layer
 
 
 
