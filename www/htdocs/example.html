@@ -1,14 +1,12 @@
 <!-- MapServer Template -->
 <html>
 <head>
-    <title>MapServer 5.x Tutorial</title>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-<!--    <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1"> -->
+	<title>MapServer 5.x Tutorial</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
-
-    <script src="/tdc/proj4js/lib/proj4js.js"></script>
-    <script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
-    <script type="text/javascript">
+	<script src="/tdc/proj4js/lib/proj4js.js"></script>
+	<script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
+	<script type="text/javascript">
 
 	// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
 	Proj4js.defs["EPSG:2370"] = "+title=Hungarian EOV EPSG:2370 +proj=somerc +lat_0=47.14439372222222 +lon_0=19.04857177777778 +x_0=650000 +y_0=200000 +ellps=GRS67 +datum=HD72 +towgs84=57.01,-69.97,-9.29 +units=m +no_defs"
@@ -19,188 +17,126 @@
 
 	var map;
 	var popup;
-	var parcelLayer;
-	var buildingLayer;
-	var allLayers;
+	var queryLayer;
+	var viewLayer;
 
 	var foundLayer = false;
+	var gid = 1;
 	
 	function init() {
-	    //-------------
-	    // MAP objektum
-	    //-------------
-	    map = new OpenLayers.Map('mapDiv',
-	    {
-	        projection: "EPSG:2370",
-//	        maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), //Ez a teljes magyarorszag
-	        maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),  //Ez pedig a kijelolt telek
-	        maxResolution: 910,
-	        units: "m"
-	    });
 
-	    //---------
-	    // Controls
-	    //---------
-	    map.addControl(new OpenLayers.Control.OverviewMap());
-	    map.addControl(new OpenLayers.Control.LayerSwitcher());
-	    //pozicio Control
-	    var posControl = new OpenLayers.Control.MousePosition({'numDigits':2, 'displayProjection': hd72, 'emptyString':''});
-	    map.addControl( posControl );
+		//-------------
+		// MAP objektum
+		//-------------
+		map = new OpenLayers.Map('mapDiv',
+		{
+			projection: "EPSG:2370",
+//			maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), //Ez a teljes magyarorszag
+			maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),  //Ez pedig a kijelolt telek
+			maxResolution: 910,
+			units: "m"
+		});
+
+		//---------
+		// Controls
+		//---------
+		//map.addControl(new OpenLayers.Control.OverviewMap());
+		//map.addControl(new OpenLayers.Control.LayerSwitcher());
+
+		var scaleLine = new OpenLayers.Control.ScaleLine();
+		map.addControl( scaleLine );
+
+		//pozicio Control
+		var posControl = new OpenLayers.Control.MousePosition({'numDigits':2, 'displayProjection': hd72, 'emptyString':''});
+		map.addControl( posControl );
+
+		//Meretarany	    
+		var scaleControl = new OpenLayers.Control.Scale();
+		map.addControl( scaleControl);
 	    
-	    var scaleControl = new OpenLayers.Control.Scale();
-	    map.addControl( scaleControl);
+		//---------
+		// Layer-ek
+		//---------
+
+		queryLayer = new OpenLayers.Layer.WMS( 
+			"Kozos", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{ layers:  "building_query", format: 'image/png' },
+//			{ layers:  "parcel_query,building_query", format: 'image/png' },
+			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true }				
+		);
+
+		viewLayer = new OpenLayers.Layer.MapServer( 
+			"Kozos", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{ layers:  "building_view", format: 'image/png' , gid: 1 },
+//			{ layers:  "parcel_view,building_view", format: 'image/png' , gid: 1 },
+			{ isBaseLayer: true, visibility: false, opacity: 1.0, transparent: true }				
+		);
+
+
+		//Fontos a sorrend. A kovetkezo mindig az elozo felett van
+		map.addLayers([queryLayer]);
+		map.addLayers([viewLayer]);
 	    
-	    //---------
-	    // Layer-ek
-	    //---------
-
-	    parcelLayer = new OpenLayers.Layer.WMS( 
-		    "Telkek", 
-		    "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-		    {
-		    layers: ['parcel'],
-		    format: 'image/png',
-pexp: '[id]<=6'
-		    }
-	    );
-
-	    buildingLayer = new OpenLayers.Layer.WMS( 
-		    "Epuletek", 
-		    "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-		    {
-		    layers: ['building'],
-		    format: 'image/png'
-		    }
-	    );
-
-		allLayers = new OpenLayers.Layer.WMS( 
-		    "Minden", 
-		    "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-		    {
-		    layers:  "parcel",
-		    format: 'image/png'
-		    }
-	    );
-
-
-	    map.addLayers([parcelLayer]);
-	    map.addLayers([buildingLayer]);
-	    map.addLayers([allLayers]);
+		//---------------
+		// Esemenykezeles
+		//---------------
 	    
-	    //---------------
-	    // Esemenykezeles
-	    //---------------
-	    
-	    //---------------------
-	    //Pozicio megjelenitese
-	    //---------------------
-	    map.events.register("click", map, 
-	    	function(e){
+		//---------------------
+		//Pozicio megjelenitese
+		//---------------------
+		map.events.register("click", map, function(e){
 	        
-	        	//Pozicio az ablak koordinata rendszereben
-	        	var pxPos=map.events.getMousePosition(e);
+			//Pozicio az ablak koordinata rendszereben
+			var pxPos=map.events.getMousePosition(e);
 	        
 			//Pozicio az aktuális vetületi rendszerben
-	        	var projPos=map.getLonLatFromPixel(pxPos);
+			var projPos=map.getLonLatFromPixel(pxPos);
 	        
-	        	//Pozicio wgs84 foldrajzi koordinatarendszerben
-	        	var wgs84Pos=projPos.clone().transform(hd72,wgs84);
+			//Pozicio wgs84 foldrajzi koordinatarendszerben
+			var wgs84Pos=projPos.clone().transform(hd72,wgs84);
 	        
-	        	//Ellenorzeskepp visszaszamolun. termeszetesen ez nem kell
-	        	var eovPos=projPos.clone().transform(hd72,hd72);
+			//Ellenorzeskepp visszaszamolun. termeszetesen ez nem kell
+			var eovPos=projPos.clone().transform(hd72,hd72);
 	                
 			document.getElementById('posDiv').innerHTML="Page position: " + pxPos + "<br>" + "EOV: " + projPos + "<br>" + "WGS84: " + wgs84Pos + "<br>" + "hd72: " + eovPos;
-	    	}
-	    );
+		}  );
 
+
+
+		//---------------------
+		//Adatlekeres
+		//---------------------
 		map.events.register( "click", map, function(e){
 
-			var getInfoParcelURL=parcelLayer.getFullRequestString({
-                    REQUEST: "GetFeatureInfo",
-                    EXCEPTIONS: "application/vnd.ogc.se_xml",
-                    FORMAT: 'png',
-                    BBOX: map.getExtent().toBBOX(),
-                    X: e.xy.x,
-                    Y: e.xy.y,
-                    INFO_FORMAT: 'text/html',
-                    QUERY_LAYERS: "parcel",
-                    FEATURE_COUNT: 1,
-                    WIDTH: map.size.w,
-                    HEIGHT: map.size.h });
-
-		  var getInfoBuildingURL=buildingLayer.getFullRequestString({
-                    REQUEST: "GetFeatureInfo",
-                    EXCEPTIONS: "application/vnd.ogc.se_xml",
-                    FORMAT: 'png',
-                    BBOX: map.getExtent().toBBOX(),
-                    X: e.xy.x,
-                    Y: e.xy.y,
-                    INFO_FORMAT: 'text/html',
-                    QUERY_LAYERS: "building",
-                    FEATURE_COUNT: 1,
-                    WIDTH: map.size.w,
-                    HEIGHT: map.size.h });
-
-		  var getInfoAllURL=allLayers.getFullRequestString({
-                    REQUEST: "GetFeatureInfo",
-                    EXCEPTIONS: "application/vnd.ogc.se_xml",
-                    FORMAT: 'png',
-                    BBOX: map.getExtent().toBBOX(),
-                    X: e.xy.x,
-                    Y: e.xy.y,
-                    INFO_FORMAT: 'text/html',
-//                    QUERY_LAYERS:  allLayers.params.LAYERS,
-                    QUERY_LAYERS:  "building,parcel",
-                    FEATURE_COUNT: 1,
-                    WIDTH: map.size.w,
-                    HEIGHT: map.size.h });
-
-			//OpenLayers.Request.POST({ url: getInfoBuildingURL, callback: function(response){ setHTML(response, e.xy )}});
-			//OpenLayers.Request.POST({ url: getInfoParcelURL, callback: function(response){ setHTML(response, e.xy )}});
-
-			OpenLayers.Request.POST({ url: getInfoAllURL, callback: function(response){ setHTML(response, e.xy )}});
-
+			var getInfoCommonURL=queryLayer.getFullRequestString({
+				REQUEST: "GetFeatureInfo",
+				EXCEPTIONS: "application/vnd.ogc.se_xml",
+				FORMAT: 'png',
+				BBOX: map.getExtent().toBBOX(),
+				X: e.xy.x,
+				Y: e.xy.y,
+				INFO_FORMAT: 'text/html',
+				//QUERY_LAYERS:  allLayers.params.LAYERS,
+				QUERY_LAYERS:  "building_query,parcel_query", //Azok a layer-ek, amikrol infot akarok
+				FEATURE_COUNT: 1,
+				WIDTH: map.size.w,
+				HEIGHT: map.size.h });
+			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ showResult(response, e.xy )}});
 		});
 
-/*
-		//--------------
-		// Parcel info
-		//--------------
+
+
+		//---------------------
+		//Kiemeles
+		//---------------------
 		map.events.register( "click", map, function(e){
-		    var url=parcelLayer.getFullRequestString({
-                    REQUEST: "GetFeatureInfo",
-                    EXCEPTIONS: "application/vnd.ogc.se_xml",
-                    FORMAT: 'png',
-                    BBOX: map.getExtent().toBBOX(),
-                    X: e.xy.x,
-                    Y: e.xy.y,
-                    INFO_FORMAT: 'text/html',
-                    QUERY_LAYERS: "parcel",
-                    FEATURE_COUNT: 1,
-                    WIDTH: map.size.w,
-                    HEIGHT: map.size.h });
-		    OpenLayers.Request.POST({ url: url, callback: function(response){ setHTML(response, e.xy )}});
-		});
 
-		//--------------
-		// Building info
-		//--------------
-		map.events.register( "click", map, function(e){
-		    var url=buildingLayer.getFullRequestString({
-                    REQUEST: "GetFeatureInfo",
-                    EXCEPTIONS: "application/vnd.ogc.se_xml",
-                    FORMAT: 'png',
-                    BBOX: map.getExtent().toBBOX(),
-                    X: e.xy.x,
-                    Y: e.xy.y,
-                    INFO_FORMAT: 'text/html',
-                    QUERY_LAYERS: "building",
-                    FEATURE_COUNT: 1,
-                    WIDTH: map.size.w,
-                    HEIGHT: map.size.h });
-		    OpenLayers.Request.POST({ url: url, callback: function(response){ setHTML(response, e.xy )}});
+			gid++;
+			viewLayer.params.gid =  gid;
+			viewLayer.redraw( true );
 		});
-*/
 
 	    //Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
 	    map.zoomToMaxExtent();
@@ -208,31 +144,23 @@ pexp: '[id]<=6'
 	    //Pozicio div torlese
 	    document.getElementById('posDiv').innerHTML="Page position:<br>" + "EOV:<br>" + "WGS84:<br>" + "hd72:";
 	   
-	   
 	};
 	
 
-	function setHTML(response, xy){
+	//---------------------
+	//Eredmeny kiiras
+	//---------------------	
+	function showResult(response, xy){
 
-		//Van talalat
-//		if( response.responseText != null && response.responseText != "" ){
-//			foundLayer = true;
-			$(dataDiv).innerHTML = response.responseText;
-//			alert("megvan");
+		//Eredmeny egy  DIV-be, a térkép alatt
+		$(dataDiv).innerHTML = response.responseText;
 
-		//Nincs talalat
-//		}else{
-//			$(dataDiv).innerHTML = "";
-//			alert("nincs");
-//		}
-
-
-/*		//Ha mar van nyitva popup, akkor azt lezarja
+		//Ha mar van nyitva popup, akkor azt lezarja
 		if( popup ){
 			map.removePopup(popup);
 		}
 							
-		//Letrehozza a popup-ot							
+		//Eredmeny egy buborékba a kivalasztott ponthoz
 		popup = new OpenLayers.Popup.FramedCloud(
                         "chick", 
                         map.getLonLatFromPixel( xy ),
@@ -245,29 +173,7 @@ pexp: '[id]<=6'
 
 		//Elhelyezi a buborekot-a terkepen
 		map.addPopup( popup );
-*/	
-
-
-/*
-alert( OpenLayers.Request.GET({ url: 
-parcelLayer.getFullRequestString({
-LAYERS: "parcel",
-FORMAT: "image/png",
-SERVICE: "WMS",
-VERSION: "1.1.1",
-REQUEST: "GetMap",
-BBOX: "645407,227808,645670,227959",
-WIDTH: "600",
-HEIGHT: "350",
-parcelexp: "[gid]=10"
-})
-})
-);
-*/
-
-
-
-}
+	}
 
 
     </script>

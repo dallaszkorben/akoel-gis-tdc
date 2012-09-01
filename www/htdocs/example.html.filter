@@ -1,0 +1,243 @@
+<!-- MapServer Template -->
+<html>
+<head>
+	<title>MapServer 5.x Tutorial</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+	<script src="/tdc/proj4js/lib/proj4js.js"></script>
+	<script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
+	<script type="text/javascript">
+
+	// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
+	Proj4js.defs["EPSG:2370"] = "+title=Hungarian EOV EPSG:2370 +proj=somerc +lat_0=47.14439372222222 +lon_0=19.04857177777778 +x_0=650000 +y_0=200000 +ellps=GRS67 +datum=HD72 +towgs84=57.01,-69.97,-9.29 +units=m +no_defs"
+
+	var hd72=new OpenLayers.Projection('EPSG:2370');
+	var map;
+	var popup;
+	var parcelLayer;
+	var buildingLayer;
+	var highlightLayer;
+var id=1;
+var infoControls;
+
+
+
+	function init() {
+
+		//-------------
+		// MAP objektum
+		//-------------
+		map = new OpenLayers.Map('mapDiv',
+		{
+			projection: "EPSG:2370",
+//			maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), 		//Ez a teljes magyarorszag
+			maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),	//Ez pedig a kijelolt telek
+			maxResolution: 910,
+			units: "m"
+		});
+
+		//---------
+		// Controls
+		//---------
+		//map.addControl(new OpenLayers.Control.OverviewMap());
+		//map.addControl(new OpenLayers.Control.LayerSwitcher());
+
+		//pozicio Control
+		var posControl = new OpenLayers.Control.MousePosition({'numDigits': 2, 'displayProjection': hd72, 'emptyString':''});
+		map.addControl( posControl );
+	    
+		var scaleControl = new OpenLayers.Control.Scale();
+		map.addControl( scaleControl );
+	    
+
+		//---------
+		// Layer-ek
+		//---------
+/*		parcelLayer = new OpenLayers.Layer.WMS( 
+			"Telkek", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{
+			layers: ['parcel'],
+			format: 'image/png'
+			}
+		);
+
+		buildingLayer = new OpenLayers.Layer.WMS( 
+			"Epuletek", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{
+			layers: ['building'],
+			format: 'image/png'
+			}
+		);
+*/
+		highlightLayer = new OpenLayers.Layer.MapServer( 
+			"Highlighting", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{ layers:  "highlighted_parcel", format: 'image/png',  'ids':  1 },
+			{ isBaseLayer: true, visibility: true, opacity: 1.0, transparent: true }				
+		);
+
+		map.addLayers( [highlightLayer] );
+//		map.addLayers([parcelLayer]);
+//		map.addLayers([buildingLayer]);
+		
+	    
+		//---------------
+		//
+		// Esemenykezeles
+		//
+		//---------------
+	    
+		//---------------------
+		//Pozicio megjelenites vezerlese
+		//---------------------
+		map.events.register(
+			"click", 
+			map, 
+			function(e){
+	        
+				//Pozicio az ablak koordinata rendszereben
+				var pxPos=map.events.getMousePosition(e);
+	        
+				//Pozicio az aktuális vetületi rendszerben
+				var projPos=map.getLonLatFromPixel(pxPos);
+    
+				document.getElementById('posDiv').innerHTML="Page position: " + pxPos + "<br>" + "EOV: " + projPos;
+			}
+		);
+
+		//---------------------
+		//Highlight object
+		//---------------------
+		map.events.register( "click", map, function(e){
+
+
+
+id++;
+map.removeLayer( highlightLayer );
+highlightLayer = new OpenLayers.Layer.MapServer( 
+			"Highlighting", 
+			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
+			{ layers:  "highlighted_parcel", format: 'image/png',  'ids':  1 },
+			{ isBaseLayer: true, visibility: true, opacity: 1.0, transparent: true }				
+		);
+
+		map.addLayers( [highlightLayer] );
+
+
+var highlight_layer = highlightLayer
+var url = highlight_layer.getFullRequestString( {ids:  id} );
+highlight_layer.url = url;
+highlight_layer.redraw(true);
+
+	});
+
+
+
+
+/*
+		//--------------
+		// Parcel info
+		//--------------
+		map.events.register( "click", map, function(e){
+		    var url=parcelLayer.getFullRequestString({
+                    REQUEST: "GetFeatureInfo",
+                    EXCEPTIONS: "application/vnd.ogc.se_xml",
+                    FORMAT: 'png',
+                    BBOX: map.getExtent().toBBOX(),
+                    X: e.xy.x,
+                    Y: e.xy.y,
+                    INFO_FORMAT: 'text/html',
+                    QUERY_LAYERS: "parcel",
+                    FEATURE_COUNT: 1,
+                    WIDTH: map.size.w,
+                    HEIGHT: map.size.h });
+		    OpenLayers.Request.POST({ url: url, callback: function(response){ setHTML(response, e.xy )}});
+		});
+
+		//--------------
+		// Building info
+		//--------------
+		map.events.register( "click", map, function(e){
+		    var url=buildingLayer.getFullRequestString({
+                    REQUEST: "GetFeatureInfo",
+                    EXCEPTIONS: "application/vnd.ogc.se_xml",
+                    FORMAT: 'png',
+                    BBOX: map.getExtent().toBBOX(),
+                    X: e.xy.x,
+                    Y: e.xy.y,
+                    INFO_FORMAT: 'text/html',
+                    QUERY_LAYERS: "building",
+                    FEATURE_COUNT: 1,
+                    WIDTH: map.size.w,
+                    HEIGHT: map.size.h });
+		    OpenLayers.Request.POST({ url: url, callback: function(response){ setHTML(response, e.xy )}});
+		});
+
+
+*/
+
+
+
+		//Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
+		map.zoomToMaxExtent();
+	    
+		//Pozicio div torlese
+		document.getElementById('posDiv').innerHTML="Page position:<br>" + "EOV:<br>" + "WGS84:<br>" + "hd72:";
+   
+	};
+	
+
+function showInfo(evt) {
+        if (evt.features && evt.features.length) {
+             highlightLayer.destroyFeatures();
+             highlightLayer.addFeatures(evt.features);
+             highlightLayer.redraw();
+        } else {
+            $('dataDiv').innerHTML = evt.text;
+        }
+    }
+
+
+	function setHTML(response, xy){
+
+		$(dataDiv).innerHTML = response.responseText;
+
+		//Ha mar van nyitva popup, akkor azt lezarja
+		if( popup ){
+			map.removePopup(popup);
+		}
+							
+		//Letrehozza a popup-ot							
+		popup = new OpenLayers.Popup.FramedCloud(
+                        "chick", 
+                        map.getLonLatFromPixel( xy ),
+                        null, //new OpenLayers.Size(100,300),
+                        response.responseText,
+                        null,
+                        true,
+                        null
+                   );
+
+		//Elhelyezi a buborekot-a terkepen
+		map.addPopup( popup );
+
+	}
+
+
+    </script>
+
+</head>
+
+<body onLoad="init()"  bgcolor="#FFFFAA" text="#000000">
+
+	<div id="posDiv"  style="border: 1px solid black; height: 100px; width: 600px"></div>
+
+	<div id="mapDiv" style="width:600px; height:350px; background:red" ></div>
+    
+	<div id="dataDiv" style="border: 1px solid black; height: 120px; width: 600px"></div>
+
+</body>
+</html>
+

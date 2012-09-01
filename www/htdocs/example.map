@@ -1,12 +1,12 @@
 MAP
-	NAME           EX2_
-	IMAGETYPE      png24
-	#EXTENT         419500 24000 945000 365925
-	EXTENT 645407 227808 645670 227959
-	SIZE           600 350
-	SHAPEPATH      "../data"
-	SYMBOLSET      "../symbols/symbols35.sym"
-	FONTSET        "../fonts/fonts.list"
+	NAME		EX2_
+	IMAGETYPE	png24
+	#EXTENT	419500 24000 945000 365925
+	EXTENT		645407 227808 645670 227959
+	SIZE		600 350
+	SHAPEPATH 	"../data"
+	SYMBOLSET	"../symbols/symbols35.sym"
+	FONTSET	"../fonts/fonts.list"
 
 	TEMPLATEPATTERN 'example*'
 
@@ -28,16 +28,16 @@ MAP
 		"init=epsg:2370"
 	END
 
-  # Start of legend
-  LEGEND
-    KEYSIZE 12 12
-    LABEL
-      TYPE BITMAP
-      SIZE MEDIUM
-      COLOR 0 0 89
-    END
-    STATUS ON
-  END
+	# Start of legend
+	LEGEND
+		KEYSIZE 12 12
+		LABEL
+			TYPE BITMAP
+			SIZE MEDIUM
+			COLOR 0 0 89
+		END
+		STATUS ON
+	END
   
   SCALEBAR
     IMAGECOLOR 255 255 255
@@ -55,26 +55,20 @@ MAP
   END # Scalebar object ends
 
 
+	#==========
+	#
+	# PARCEL for QUERY
+	#
+	#==========
+
 	LAYER
-
-#		METADATA
-#			pexp_validation_pattern '^[0-9]+$'
-#		END
-
-		VALIDATION
-			"pexp"  "^[0-9]+$"
-		END
-
-		 NAME "parcel"
+		 NAME "parcel_query"
 		 CONNECTIONTYPE postgis
 		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-# DATA "topo_geom from parcel_view"
+		# DATA "topo_geom from parcel_view"
 		DATA "the_geom from parcel"
-		 STATUS DEFAULT
 		TYPE POLYGON
 		TOLERANCE 1
-	
-
 
 		PROJECTION
 			"init=epsg:2370"
@@ -89,13 +83,51 @@ MAP
 		#Lekerdezes tablazatanak lezarasa
 		FOOTER 'templates/parcel_footer.html'
 
+		#Should not be seen as it is a query layer
+		STATUS OFF
+
+		# NO COLOR as it is a query layer
+#		CLASS
+#			STYLE
+#				COLOR 100 255 100
+#			END
+#			STYLE
+#				OUTLINECOLOR 0 0 200
+#				WIDTH 1
+#			END
+#		END #class
+	END #layer
+
+	#==========
+	#
+	# PARCEL for VIEW
+	#
+	#==========
+
+	LAYER
+		NAME "parcel_view"
+
+		 CONNECTIONTYPE postgis
+		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		# DATA "topo_geom from parcel_view"
+		DATA "the_geom from parcel"
+		STATUS DEFAULT
+		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
 		#Kiemelt elemek		
-		CLASSITEM "id"	
+		CLASSITEM "gid"	
 		CLASS
 			NAME "highlited"
-#		EXPRESSION  "%pexp%"  
-#		EXPRESSION  "20"
-		EXPRESSION ([id]<=6)
+			EXPRESSION  "%gid%"  
 			STYLE
 				COLOR 30 30 155
 			END
@@ -117,72 +149,107 @@ MAP
 		END #class
 	END #layer
 
-
-
-
-  LAYER
-    NAME "building"
-    CONNECTIONTYPE postgis
-    CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-#    DATA "topo_geom from parcel_view"
-    DATA "the_geom from building"
-    STATUS DEFAULT
-    TYPE POLYGON
-    TOLERANCE 1
+	#==========
+	#
+	# BUILDING for QUERY
+	#
+	#==========
+	LAYER
+		NAME "building_query"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		#DATA "topo_geom from parcel_view"
+		DATA "the_geom from building"
+		TYPE POLYGON
+		TOLERANCE 1
 	
-    PROJECTION
-      "init=epsg:2370"
-    END
-
-    #Lekerdezes fejlece
-    HEADER 'templates/building_header.html'
-
-    #Lekerdezeshez szukseges tempalte fajl, specialis formaban
-    TEMPLATE 'templates/building_temp.html'
-		
-    #Lekerdezes tablazatanak lezarasa
-    FOOTER 'templates/building_footer.html'
-
-    #
-    # Kiemelt elem
-    #			
-
-    CLASS
-	NAME "normal"
-	STYLE
-		COLOR 100 255 100
-	END
-	STYLE
-		OUTLINECOLOR 0 0 0
-		WIDTH 1
-	END
-    END #class
-
-  END #layer
-
-  
-  
-
-
-
-
-  LAYER
-    NAME "border"					#layer neve
-    DATA border
-    STATUS DEFAULT
-    TYPE LINE
-	
-    FILTER "1=1"
-    PROJECTION
-      "init=epsg:2370"
-    END
-	CLASS
-		STYLE
-			COLOR 0 255 0
-			WIDTH 1
+		PROJECTION
+			"init=epsg:2370"
 		END
-	END
-  END #layer
+
+		#Lekerdezes fejlece
+		HEADER 'templates/building_header.html'
+
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/building_temp.html'
+	
+		#Lekerdezes tablazatanak lezarasa
+		FOOTER 'templates/building_footer.html'
+
+		#Should not be seen as it is a query layer
+		STATUS OFF
+
+		# NO COLOR as it is a query layer
+#		CLASS
+#			STYLE
+#				COLOR 100 255 100
+#			END
+#			STYLE
+#				OUTLINECOLOR 0 0 0
+#				WIDTH 1
+#			END
+#		END #class
+
+	END #layer
+
+  
+  	#==========
+	#
+	# BUILDING for VIEW
+	#
+	#==========
+	LAYER
+		NAME "building_view"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		#DATA "topo_geom from parcel_view"
+		DATA "the_geom from building"
+		STATUS DEFAULT
+		TYPE POLYGON
+		TOLERANCE 1
+	
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		CLASS
+			STYLE
+				COLOR 100 255 100
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+		END #class
+
+	END #layer
+
+
+
+	#==========
+	#
+	# ORSZAGHATAR
+	#
+	#==========
+
+	LAYER
+		NAME "border"					#layer neve
+		DATA border
+		STATUS DEFAULT
+		TYPE LINE
+	
+		FILTER "1=1"
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		CLASS
+			STYLE
+				COLOR 0 255 0
+				WIDTH 1
+			END
+		END
+	END #layer
 
 
 
