@@ -4,8 +4,11 @@
 	<title>MapServer 5.x Tutorial</title>
 	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
 
-	<script src="/tdc/proj4js/lib/proj4js.js"></script>
+	<script type="text/javascript" src="/tdc/proj4js/lib/proj4js.js"></script>
 	<script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
+	<script type="text/javascript" src="/tdc/jquery/jquery-1.8.1.js"></script>
+	<script type="text/javascript" src="/tdc/xmlhttprequest/XMLHttpRequest.js"></script>
+
 	<script type="text/javascript">
 
 	// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
@@ -124,8 +127,7 @@
 				WIDTH: map.size.w,
 				HEIGHT: map.size.h });
 			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ showResult(response, e.xy )}});
-		});
-
+	});
 
 
 		//---------------------
@@ -147,13 +149,14 @@
 	};
 	
 
+
 	//---------------------
 	//Eredmeny kiiras
 	//---------------------	
 	function showResult(response, xy){
 
 		//Eredmeny egy  DIV-be, a térkép alatt
-		$(dataDiv).innerHTML = response.responseText;
+		document.getElementById("dataDiv").innerHTML =  response.responseText ;
 
 		//Ha mar van nyitva popup, akkor azt lezarja
 		if( popup ){
