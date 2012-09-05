@@ -1,0 +1,45 @@
+<html>
+<head>
+	<title>MapServer 5.x Tutorial</title>
+	<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+
+	<script type="text/javascript" src="/tdc/jquery/jquery-1.8.1.js"></script>
+
+	<script type="text/javascript">
+	
+		function init() {
+
+
+			$.ajax({
+				type: "GET",
+				url: "http://localhost/tdc/htdocs/proba.php",
+				contentType: "text/html",
+				dataType: "html",
+				data:  { name : 'Kovacs',  title: 'dr' },
+				async: false,
+				success: processSuccess,
+				error: processError
+			});
+		
+			function processSuccess(data, status, req) {
+				if (status == "success")
+					document.getElementById('dataDiv').innerHTML= "talalat: " + data;
+			}
+
+			function processError(data, status, req) {
+				document.getElementById('dataDiv').innerHTML= "hiba: " +  req.responseText + " " + status ;
+			}  
+		}
+
+	</script>
+
+</head>
+
+<body onLoad="init()"  bgcolor="#FFFFAA" text="#000000">
+  
+	<div id="dataDiv" style="border: 1px solid black; height: 120px; width: 600px"></div>
+
+</body>
+</html>
+
