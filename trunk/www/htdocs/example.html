@@ -57,6 +57,9 @@
 		var scaleControl = new OpenLayers.Control.Scale();
 		map.addControl( scaleControl);
 	    
+		var attribControl = new OpenLayers.Control.Attribution();
+		map.addControl( attribControl );
+
 		//---------
 		// Layer-ek
 		//---------
@@ -64,16 +67,16 @@
 		queryLayer = new OpenLayers.Layer.WMS( 
 			"Kozos", 
 			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-			{ layers:  "building_query", format: 'image/png' },
-//			{ layers:  "parcel_query,building_query", format: 'image/png' },
+//			{ layers:  "parcel_query_selected,building_query_selected", format: 'image/png' },
+			{ layers:  "parcel_query,building_query", format: 'image/png' },
 			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true }				
 		);
 
 		viewLayer = new OpenLayers.Layer.MapServer( 
 			"Kozos", 
 			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-			{ layers:  "building_view", format: 'image/png' , gid: 1 },
-//			{ layers:  "parcel_view,building_view", format: 'image/png' , gid: 1 },
+//			{ layers:  "building_view", format: 'image/png' , gid: 1 },
+			{ layers:  "parcel_view,building_view", format: 'image/png' , gid: 1 },
 			{ isBaseLayer: true, visibility: false, opacity: 1.0, transparent: true }				
 		);
 
@@ -109,7 +112,7 @@
 
 
 		//---------------------
-		//Adatlekeres
+		//Megtudja, hogy milyen elemek lettek kivalasztva
 		//---------------------
 		map.events.register( "click", map, function(e){
 
@@ -121,25 +124,25 @@
 				X: e.xy.x,
 				Y: e.xy.y,
 				INFO_FORMAT: 'text/html',
-				//QUERY_LAYERS:  allLayers.params.LAYERS,
-				QUERY_LAYERS:  "building_query,parcel_query", //Azok a layer-ek, amikrol infot akarok
+				QUERY_LAYERS:  "building_query_selected,parcel_query_selected",
+				//QUERY_LAYERS:  "building_query,parcel_query", //Azok a layer-ek, amikrol infot akarok
 				FEATURE_COUNT: 1,
 				WIDTH: map.size.w,
 				HEIGHT: map.size.h });
 			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ showResult(response, e.xy )}});
-	});
+		});
 
 
-		//---------------------
+/*		//---------------------
 		//Kiemeles
 		//---------------------
 		map.events.register( "click", map, function(e){
 
 			gid++;
-			viewLayer.params.gid =  gid;
+			viewLayer.params.parcel_gid =  gid;
 			viewLayer.redraw( true );
 		});
-
+*/
 	    //Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
 	    map.zoomToMaxExtent();
 	    
@@ -156,26 +159,85 @@
 	function showResult(response, xy){
 
 		//Eredmeny egy  DIV-be, a térkép alatt
-		document.getElementById("dataDiv").innerHTML =  response.responseText ;
+		//document.getElementById("dataDiv").innerHTML =  response.responseText ;
+
+		var xmlDoc = $.parseXML( "<block>" + response.responseText + "</block>" );
+
+		var objs = $( $(xmlDoc)[0] ).find("object" );
+	
+		var toDiv = "<html><head></head><body>Kivalasztott elemek<br>"
+
+		var objectName;
+		var objectId;
+		var layerToQuery = "";
+
+		//Vegig az osszes "object" elemen
+		for( i = 0; i< objs.length; i++){
+			
+			objectName = $(objs[ i ]).attr("name");
+			objectId = $(objs[ i ]).find("id")[0].textContent;
+
+			toDiv +=  "Objektum: <b>" + objectName + "</b>   azonosito: <b>" + objectId  + "</b><br>";
+
+		}
+
+		//Megjelenites a dataDiv-ben
+		toDiv += "</body></html>"
+		document.getElementById( "dataDiv" ).innerHTML = toDiv;
+
+		//Objektum kiemeles
+		if( objectName == "parcel" ){
+			viewLayer.params.parcel_gid =  objectId;
+			viewLayer.params.building_gid =  null;
+			viewLayer.redraw( true );
+			layerToQuery = "parcel_query"
+		}else if( objectName == "building" ){
+			viewLayer.params.building_gid =  objectId;
+			viewLayer.params.parcel_gid =  null;
+			viewLayer.redraw( true );
+			layerToQuery = "building_query"
+		}else{
+			viewLayer.params.parcel_gid =  null;
+			viewLayer.params.building_gid =  null;
+			viewLayer.redraw( true );
+			layerToQuery = ""
+		}
 
 		//Ha mar van nyitva popup, akkor azt lezarja
 		if( popup ){
 			map.removePopup(popup);
-		}
-							
-		//Eredmeny egy buborékba a kivalasztott ponthoz
-		popup = new OpenLayers.Popup.FramedCloud(
-                        "chick", 
-                        map.getLonLatFromPixel( xy ),
-                        null, //new OpenLayers.Size(100,300),
-                        response.responseText,
-                        null,
-                        true,
-                        null
-                   );
+		}			
+		
 
-		//Elhelyezi a buborekot-a terkepen
-		map.addPopup( popup );
+		//Query keres a kivalasztott objektumrol
+		var getInfo=queryLayer.getFullRequestString({
+				REQUEST: "GetFeatureInfo",
+				EXCEPTIONS: "application/vnd.ogc.se_xml",
+				FORMAT: 'png',
+				BBOX: map.getExtent().toBBOX(),
+				X: xy.x,
+				Y: xy.y,
+				INFO_FORMAT: 'text/html',
+				QUERY_LAYERS:  layerToQuery, //Ha tobb layert akarok lekerni, akkor vesszovel elvalasztva kell felsorolni
+				FEATURE_COUNT: 1,
+				WIDTH: map.size.w,
+				HEIGHT: map.size.h });
+		OpenLayers.Request.POST({ url: getInfo, callback: function(response){ 
+
+			//Eredmeny egy buborekba a kivalasztott ponthoz
+			popup = new OpenLayers.Popup.FramedCloud(
+	                        "chick", 
+	                        map.getLonLatFromPixel( xy ),
+	                        null, //new OpenLayers.Size(100,300),
+	                        response.responseText,
+	                        null,
+	                        true,
+	                        null
+	                   );
+
+			//Elhelyezi a buborekot-a terkepen
+			map.addPopup( popup );
+		}});
 	}
 
 
