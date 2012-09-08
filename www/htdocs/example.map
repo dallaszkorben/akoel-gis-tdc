@@ -39,20 +39,46 @@ MAP
 		STATUS ON
 	END
   
-  SCALEBAR
-    IMAGECOLOR 255 255 255
-    LABEL
-      COLOR 0 0 0
-      SIZE TINY
-    END
-    STYLE 1
-    SIZE 100 2
-    COLOR 0 0 0
-    UNITS MILES
-    INTERVALS 2
-    TRANSPARENT FALSE
-    STATUS ON
-  END # Scalebar object ends
+	SCALEBAR
+		IMAGECOLOR 255 255 255
+		LABEL
+			COLOR 0 0 0
+			SIZE TINY
+		END
+		STYLE 1
+		SIZE 100 2
+		COLOR 0 0 0
+		UNITS MILES
+		INTERVALS 2
+		TRANSPARENT FALSE
+		STATUS ON
+	END # Scalebar object ends
+
+	#==========
+	#
+	# PARCEL for QUERY SELECTED
+	#
+	#==========
+
+	LAYER
+		 NAME "parcel_query_selected"
+		 CONNECTIONTYPE postgis
+		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		# DATA "topo_geom from parcel_view"
+		DATA "the_geom from parcel"
+		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		#Ez a lenyeg. Ha ki lett valasztva akkor ez a template jut vissza
+		TEMPLATE 'templates/parcel_selected_temp.html'
+
+		#Should not be seen as it is a query layer
+		STATUS OFF
+	END #layer
 
 
 	#==========
@@ -85,17 +111,6 @@ MAP
 
 		#Should not be seen as it is a query layer
 		STATUS OFF
-
-		# NO COLOR as it is a query layer
-#		CLASS
-#			STYLE
-#				COLOR 100 255 100
-#			END
-#			STYLE
-#				OUTLINECOLOR 0 0 200
-#				WIDTH 1
-#			END
-#		END #class
 	END #layer
 
 	#==========
@@ -107,8 +122,8 @@ MAP
 	LAYER
 		NAME "parcel_view"
 
-		 CONNECTIONTYPE postgis
-		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
 		# DATA "topo_geom from parcel_view"
 		DATA "the_geom from parcel"
 		STATUS DEFAULT
@@ -120,14 +135,14 @@ MAP
 		END
 
 		VALIDATION
-			"gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"parcel_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
 		#Kiemelt elemek		
 		CLASSITEM "gid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%gid%"  
+			EXPRESSION  "%parcel_gid%"  
 			STYLE
 				COLOR 30 30 155
 			END
@@ -147,6 +162,32 @@ MAP
 				WIDTH 1
 			END
 		END #class
+	END #layer
+
+	#==========
+	#
+	# BUILDING for QUERY SELECTED
+	#
+	#==========
+	LAYER
+		NAME "building_query_selected"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		#DATA "topo_geom from parcel_view"
+		DATA "the_geom from building"
+		TYPE POLYGON
+		TOLERANCE 1
+	
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/building_selected_temp.html'
+	
+		#Should not be seen as it is a query layer
+		STATUS OFF
+
 	END #layer
 
 	#==========
@@ -179,17 +220,6 @@ MAP
 		#Should not be seen as it is a query layer
 		STATUS OFF
 
-		# NO COLOR as it is a query layer
-#		CLASS
-#			STYLE
-#				COLOR 100 255 100
-#			END
-#			STYLE
-#				OUTLINECOLOR 0 0 0
-#				WIDTH 1
-#			END
-#		END #class
-
 	END #layer
 
   
@@ -212,7 +242,30 @@ MAP
 			"init=epsg:2370"
 		END
 
+
+
+
+
+		VALIDATION
+			"building_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
+		#Kiemelt elemek		
+		CLASSITEM "gid"	
 		CLASS
+			NAME "highlited"
+			EXPRESSION  "%building_gid%"  
+			STYLE
+				COLOR 50 180 50
+			END
+			STYLE
+				OUTLINECOLOR 230 140 50
+				WIDTH 3
+			END
+		END #class
+
+		CLASS
+			NAME "normal"
 			STYLE
 				COLOR 100 255 100
 			END
