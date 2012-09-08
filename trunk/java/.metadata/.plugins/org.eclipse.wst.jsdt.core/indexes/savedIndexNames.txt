@@ -1,0 +1,6 @@
+INDEX VERSION 1.122+/home/akoel/Projects/tdc/svn/java/.metadata/.plugins/org.eclipse.wst.jsdt.core/indexes
+1913439372.index
+2168516250.index
+1524171696.index
+308713477.index
+2581250658.index
