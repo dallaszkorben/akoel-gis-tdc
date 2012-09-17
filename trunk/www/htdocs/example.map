@@ -54,6 +54,10 @@ MAP
 		STATUS ON
 	END # Scalebar object ends
 
+
+
+
+
 	#==========
 	#
 	# PARCEL for QUERY SELECTED
@@ -61,11 +65,11 @@ MAP
 	#==========
 
 	LAYER
-		 NAME "parcel_query_selected"
-		 CONNECTIONTYPE postgis
-		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		# DATA "topo_geom from parcel_view"
-		DATA "the_geom from parcel"
+		NAME "parcel_query_selected"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		DATA "topo_geom from parcel_view"
+		#DATA "the_geom from parcel"
 		TYPE POLYGON
 		TOLERANCE 1
 
@@ -88,11 +92,12 @@ MAP
 	#==========
 
 	LAYER
-		 NAME "parcel_query"
-		 CONNECTIONTYPE postgis
-		 CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		# DATA "topo_geom from parcel_view"
-		DATA "the_geom from parcel"
+		NAME "parcel_query"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		DATA "topo_geom from parcel_extend_view"
+		#DATA "topo_geom from parcel_view"
+		#DATA "the_geom from parcel"
 		TYPE POLYGON
 		TOLERANCE 1
 
@@ -124,8 +129,8 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		# DATA "topo_geom from parcel_view"
-		DATA "the_geom from parcel"
+		DATA "topo_geom from parcel_view"
+		#DATA "the_geom from parcel"
 		STATUS DEFAULT
 		TYPE POLYGON
 		TOLERANCE 1
@@ -275,6 +280,54 @@ MAP
 			END
 		END #class
 
+	END #layer
+
+
+
+	#==========
+	#
+	# POINTS for VIEW
+	#
+	#==========
+
+	LAYER
+		NAME "point_view"
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		#DATA "topo_geom from parcel_view"
+		DATA "geom from mytopology.node"
+		STATUS DEFAULT
+		TYPE POINT
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"point_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
+		CLASS
+			TEXT '[node_id]'
+			LABEL                               
+				FORCE true
+				POSITION ul		
+				STYLE
+					COLOR 100 100 100
+					OUTLINECOLOR 10 110 0
+					MINSIZE 40
+					SIZE 40
+					WIDTH 5.0
+				END
+                        END			
+			STYLE
+				SYMBOL "circle"
+				SIZE 8
+				COLOR 200 0 0
+				OUTLINECOLOR 30 30 30
+			END
+		END
 	END #layer
 
 
