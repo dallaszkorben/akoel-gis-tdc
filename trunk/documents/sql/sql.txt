@@ -1,0 +1,85 @@
+SET search_path to topology, public;
+
+--select addtopogeometrycolumn('mytopology', 'public', 'building', 'topo_geom', 'multipolygon');
+--select addtopogeometrycolumn('mytopology', 'public', 'parcel', 'topo_geom', 'multipolygon');
+
+--select totopogeom(the_geom, 'mytopology', 1) from building
+--update parcel set topo_geom=totopogeom(the_geom, 'mytopology', 2);
+--select face_id, st_astext(mbr) from mytopology.face order by st_astext(mbr);
+
+--select * from mytopology.relation order by layer_id, element_id
+
+--select * from test t, points p, test_points tp where tp.test_id=t.id and tp.points_id=p.id
+
+--create view public.test_view as select t.name,  ST_MakePoint(p.x, p.y, p.z) from test t, --test_points tp, points p where tp.test_id=t.id and tp.points_id=p.id;
+
+--select name, st_astext(st_makepoint) from test_view
+--select node_id, st_astext(geom) from mytopology.node;
+
+select face_id, st_astext(mbr) from mytopology.face;
+
+--select GetNodeByPoint('mytopology', 'POINT(645489.24 227905.25)', 0);
+
+CREATE or REPLACE FUNCTION public.getPointNames(parcel_gid integer) RETURNS text AS $$
+DECLARE 
+   output text:= '';
+   mviews RECORD;
+BEGIN  
+  FOR mviews IN SELECT pa.gid, po.name FROM parcel as pa, point as po, point_parcel as p_p, survey_point su where pa.gid=parcel_gid and po.id=p_p.point --and pa.gid=p_p.parcel and po.id=su.point_id LOOP
+     output := mviews.name || output || ', ';
+  END LOOP;
+  RETURN output; 
+END;
+$$ language plpgsql;
+
+--alter table faces add column nodelist  int[] not null
+--create index indx_faces_nodes on faces using GIN ("nodelist")
+
+--set enable_seqscan to off;
+--explain analyze
+--aselect * from faces where nodelist @> array[4]
+
+
+
+
+CREATE or REPLACE FUNCTION mytopology.sv_MoveNode( nid integer, x double precision, y double precision) RETURNS integer AS $$
+DECLARE 
+   output integer;
+BEGIN
+
+   UPDATE node set geom=ST_MakePoint( x, y ) WHERE node.node_id=nid;
+
+   UPDATE edge set geom = ST_MAKELINE() 
+
+   TURN( select node_id from node as n where n.node_id=nid );
+
+  RETURN 13; 
+END;
+$$ language plpgsql;
+
+--select sv_MoveNode(21, 2, 2);
+
+
+
+
+CREATE or REPLACE FUNCTION mytopology.SV_MoveNode( nid integer, x double precision, y double precision) RETURNS integer AS $$
+DECLARE 
+   output integer;
+BEGIN
+
+   UPDATE node set geom=ST_MakePoint( x, y ) WHERE node.node_id=nid;
+
+   --Start point valtoztatasa
+   UPDATE edge_data set geom = ST_MAKELINE( ST_POINT( x, y), ST_ENDPOINT(geom)) WHERE edge_data.start_node=nid;
+
+   --End point valtoztatasa
+   UPDATE edge_data set geom = ST_MAKELINE( ST_STARTPOINT(geom), ST_POINT( x, y) ) WHERE edge_data.end_node=nid;
+
+  RETURN nid;
+END;
+$$ language plpgsql;
+
+node_id=2
+POINT(645499.24 227932.72)
+
+
