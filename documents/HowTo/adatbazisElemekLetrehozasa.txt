@@ -1,0 +1,209 @@
+
+---------------------------------------
+--
+-- POINT
+--
+-- tp_point_2d valtozasanak kezelese AFTER
+--
+---------------------------------------
+create or replace function check_position_for_point_2d_after() RETURNS TRIGGER as $BODY$
+DECLARE
+  nodegid bigint = NULL;
+  spnid bigint = NULL;
+BEGIN
+
+  --Ha megvaltoztatok torlok vagy beszurok egy tp_point_2d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' OR TG_OP='DELETE' ) THEN
+
+    --Ha ujat rogzitek vagy regit modositok
+    IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+      --Akkor megnezi, hogy az uj-hoz van-e tp_node_2d
+      SELECT n.gid INTO nodegid FROM tp_node_2d AS n, sv_survey_point AS sp, tp_point_2d as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.sv_survey_point;
+
+      --Ha van
+      IF( nodegid IS NOT NULL ) THEN
+
+        --Akkor update-elem, hogy aktivaljam a TRIGGER-et
+        UPDATE tp_node_2d SET sv_survey_point=sv_survey_point WHERE gid=nodegid; 
+  
+      --Nincs
+      ELSE 
+
+        --Megkeresi a ponthoz tartozo survey point-ot
+        SELECT sp.nid INTO spnid FROM sv_survey_point AS sp WHERE sp.nid=NEW.sv_survey_point;
+
+        --Letre hozok egy uj tp_node_2d-t
+        INSERT INTO tp_node_2d (sv_survey_point) VALUES ( spnid );
+
+      END IF;
+
+    END IF;
+
+    --Ha torlok vagy modositok
+    IF(TG_OP='UPDATE' OR TG_OP='DELETE') THEN
+
+      UPDATE tp_node_2d AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.sv_survey_point=sp.nid;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$BODY$
+language "plpgsql" VOLATILE  SECURITY DEFINER;
+
+--Trigger
+create trigger check_position_for_point_2d_after_trigger AFTER INSERT OR UPDATE OR DELETE ON tp_point_2d for each row execute procedure check_position_for_point_2d_after();
+
+---------------------------------------
+--
+-- NODE
+--
+-- tp_node_2d valtozasanak kezelese BEFORE
+--
+---------------------------------------
+--Letre kell hozni a PONTOKAT tartalmazo geometriai mezőt
+SELECT AddGeometryColumn('own', 'tp_node_2d', 'geom', -1, 'POINT', 2 );
+
+--Fuggveny a tp_node_2 modositashoz
+create or replace function check_point_for_node_2d_before() RETURNS TRIGGER as $BODY$
+DECLARE
+  geomtext text = 'POINT(';
+  geomtextend text = ')';
+  position position_2d%rowtype;
+--  valt tp_point_2d%rowtype;
+BEGIN
+
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --Megnezem az uj tp_node_2d-bez tartozo aktualis pont kooridinatait
+    SELECT p.x, p.y INTO position FROM tp_point_2d AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.sv_survey_point=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+
+--select * into valt from tp_point_2d LIMIT 1;
+
+    --Ha rendben van
+    IF( position.x IS NOT NULL AND position.y IS NOT NULL ) THEN
+      
+      -- akkor a node geometriajat aktualizalja
+      geomtext := geomtext || position.x || ' ' || position.y || geomtextend;
+      NEW.geom := public.ST_GeomFromText( geomtext, -1 );
+    ELSE
+
+      RAISE EXCEPTION 'Nem vegrehajthato muvelet, mert a node-nak nem letezne akkor koordinataja.';
+
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$BODY$
+language "plpgsql" VOLATILE  SECURITY DEFINER;
+
+--Most lesz belole trigger
+create trigger check_point_for_node_2d_before_trigger BEFORE INSERT OR UPDATE ON tp_node_2d for each row execute procedure check_point_for_node_2d_before();
+
+--Modositas tesztelese
+update tp_node_2d set tp_point_2d=9 where gid=9;
+
+---------------------------------------
+--
+-- NODE
+--
+-- tp_node_2d valtozasanak kezelese AFTER
+--
+---------------------------------------
+
+create or replace function check_point_for_node_2d_after() RETURNS TRIGGER as $BODY$
+DECLARE
+  faces tp_face_2d%rowtype;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    
+    --Csak azert hogy aktivalodjon a tp_face_2d trigger-e. Azok a face-ek amik tartalmazzak ezt a node-ot
+    UPDATE tp_face_2d AS f set nodelist=nodelist WHERE ARRAY[NEW.gid] <@ f.nodelist;
+
+  ELSIF(TG_OP='DELETE') THEN
+
+    SELECT * INTO faces FROM tp_face_2d AS f WHERE ARRAY[OLD.gid] <@ f.nodelist;
+    IF FOUND THEN
+
+      RAISE EXCEPTION 'Nem törölhetem ki a csomópontot mert van legalabb 1 Face ami tartalmazza. gid: %, nodelist: %', faces.gid, faces.nodelist;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$BODY$
+language "plpgsql" VOLATILE  SECURITY DEFINER;
+
+
+--Most lesz belole trigger
+create trigger check_point_for_node_2d_after_trigger AFTER INSERT OR UPDATE OR DELETE ON tp_node_2d for each row execute procedure check_point_for_node_2d_after();
+
+
+---------------------------------------
+--
+-- tp_face_2d valtozasanak kezelese
+--
+---------------------------------------
+--position_2d tipus letrehozasa
+create type position_2d_before as (x double precision, y double precision);
+
+--Fuggveny a tp_face_2d modositashoz
+create or replace function check_nodelist_for_face_2d_before() RETURNS TRIGGER as $BODY$
+DECLARE
+  result boolean;
+  geomtext text = 'POLYGON((';
+  geomtextend text = '))';
+  position position_2d%rowtype;
+  isfirst boolean = true;
+  actualnode bigint;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    select count(1)=array_upper(NEW.nodelist,1) INTO result FROM tp_node_2d AS n WHERE ARRAY[n.gid] <@ NEW.nodelist;
+
+    --Nem megfelelo meretu a lista
+    if( NOT result ) THEN
+        RAISE EXCEPTION 'Nem vegrehajthato a tp_face_2d INSERT/UPDATE. Rossz a lista: %', NEW.nodelist;
+    END IF;
+   
+    --Vegig a csomopontokon
+    FOREACH actualnode IN ARRAY NEW.nodelist LOOP
+
+      --csomopontok koordinatainak kideritese
+      SELECT p.x, p.y INTO position FROM sv_survey_point AS sp, tp_point_2d AS p, sv_survey_document AS sd, tp_node_2d AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      
+      --Veszem a kovetkezo pontot
+      geomtext = geomtext || position.x || ' ' || position.y || ',';
+
+      IF isfirst THEN
+
+        --Zarnom kell a poligont az elso ponttal
+        geomtextend = position.x || ' ' || position.y || geomtextend;
+
+      END IF;
+
+      isfirst=false;
+
+    END LOOP;
+
+    --Most irom at a geometriat az uj ertekekre
+    geomtext = geomtext || geomtextend;
+
+--RAISE EXCEPTION' %', geomtext;
+    NEW.geom := public.ST_GeomFromText( geomtext, -1 ); 
+
+  END IF;
+  RETURN NEW;
+END;
+$BODY$
+language "plpgsql" VOLATILE  SECURITY DEFINER;    
+
+--Most lesz belole trigger
+create trigger check_nodelist_for_face_2d_before_trigger BEFORE INSERT OR UPDATE ON tp_face_2d for each row execute procedure check_nodelist_for_face_2d_before();
+
+
+--Kiprobaljuk a modositast
+update tp_face_2d set nodelist='{2,5,6,4}' where gid=2;
+
