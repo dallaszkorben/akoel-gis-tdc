@@ -18,7 +18,7 @@ MAP
 		METADATA
 			"ows_enable_request" "*"
 			"wms_title"		"Sajat WMS szerverem"
-			"wms_olineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
+			"wms_onlineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
 			"wms_srs"		"EPSG:23700"
 			"wms_feature_info_mime_type" "text/html"
 		END
@@ -55,69 +55,6 @@ MAP
 	END # Scalebar object ends
 
 
-
-
-
-	#==========
-	#
-	# PARCEL for QUERY SELECTED
-	#
-	#==========
-
-	LAYER
-		NAME "parcel_query_selected"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "topo_geom from parcel_view"
-		#DATA "the_geom from parcel"
-		TYPE POLYGON
-		TOLERANCE 1
-
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		#Ez a lenyeg. Ha ki lett valasztva akkor ez a template jut vissza
-		TEMPLATE 'templates/parcel_selected_temp.html'
-
-		#Should not be seen as it is a query layer
-		STATUS OFF
-	END #layer
-
-
-	#==========
-	#
-	# PARCEL for QUERY
-	#
-	#==========
-
-	LAYER
-		NAME "parcel_query"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "topo_geom from parcel_extend_view"
-		#DATA "topo_geom from parcel_view"
-		#DATA "the_geom from parcel"
-		TYPE POLYGON
-		TOLERANCE 1
-
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		#Lekerdezes fejlece
-		HEADER 'templates/parcel_header.html'
-
-		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/parcel_temp.html'
-		
-		#Lekerdezes tablazatanak lezarasa
-		FOOTER 'templates/parcel_footer.html'
-
-		#Should not be seen as it is a query layer
-		STATUS OFF
-	END #layer
-
 	#==========
 	#
 	# PARCEL for VIEW
@@ -129,8 +66,8 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "topo_geom from parcel_view"
-		#DATA "the_geom from parcel"
+		#DATA "topo_geom from parcel_view"
+		DATA "the_geom from parcel"
 		STATUS DEFAULT
 		TYPE POLYGON
 		TOLERANCE 1
@@ -138,24 +75,6 @@ MAP
 		PROJECTION
 			"init=epsg:2370"
 		END
-
-		VALIDATION
-			"parcel_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
-		END
-
-		#Kiemelt elemek		
-		CLASSITEM "gid"	
-		CLASS
-			NAME "highlited"
-			EXPRESSION  "%parcel_gid%"  
-			STYLE
-				COLOR 30 30 155
-			END
-			STYLE
-				OUTLINECOLOR 230 140 50
-				WIDTH 3
-			END
-		END #class
 
 		CLASS
 			NAME "normal"
@@ -168,168 +87,6 @@ MAP
 			END
 		END #class
 	END #layer
-
-	#==========
-	#
-	# BUILDING for QUERY SELECTED
-	#
-	#==========
-	LAYER
-		NAME "building_query_selected"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		#DATA "topo_geom from parcel_view"
-		DATA "the_geom from building"
-		TYPE POLYGON
-		TOLERANCE 1
-	
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/building_selected_temp.html'
-	
-		#Should not be seen as it is a query layer
-		STATUS OFF
-
-	END #layer
-
-	#==========
-	#
-	# BUILDING for QUERY
-	#
-	#==========
-	LAYER
-		NAME "building_query"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		#DATA "topo_geom from parcel_view"
-		DATA "the_geom from building"
-		TYPE POLYGON
-		TOLERANCE 1
-	
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		#Lekerdezes fejlece
-		HEADER 'templates/building_header.html'
-
-		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/building_temp.html'
-	
-		#Lekerdezes tablazatanak lezarasa
-		FOOTER 'templates/building_footer.html'
-
-		#Should not be seen as it is a query layer
-		STATUS OFF
-
-	END #layer
-
-  
-  	#==========
-	#
-	# BUILDING for VIEW
-	#
-	#==========
-	LAYER
-		NAME "building_view"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		#DATA "topo_geom from parcel_view"
-		DATA "the_geom from building"
-		STATUS DEFAULT
-		TYPE POLYGON
-		TOLERANCE 1
-	
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-
-
-
-
-		VALIDATION
-			"building_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
-		END
-
-		#Kiemelt elemek		
-		CLASSITEM "gid"	
-		CLASS
-			NAME "highlited"
-			EXPRESSION  "%building_gid%"  
-			STYLE
-				COLOR 50 180 50
-			END
-			STYLE
-				OUTLINECOLOR 230 140 50
-				WIDTH 3
-			END
-		END #class
-
-		CLASS
-			NAME "normal"
-			STYLE
-				COLOR 100 255 100
-			END
-			STYLE
-				OUTLINECOLOR 0 0 0
-				WIDTH 1
-			END
-		END #class
-
-	END #layer
-
-
-
-	#==========
-	#
-	# POINTS for VIEW
-	#
-	#==========
-
-	LAYER
-		NAME "point_view"
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		#DATA "topo_geom from parcel_view"
-		DATA "geom from mytopology.node"
-		STATUS DEFAULT
-		TYPE POINT
-		TOLERANCE 1
-
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		VALIDATION
-			"point_gid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
-		END
-
-		CLASS
-			TEXT '[node_id]'
-			LABEL                               
-				FORCE true
-				POSITION ul		
-				STYLE
-					COLOR 100 100 100
-					OUTLINECOLOR 10 110 0
-					MINSIZE 40
-					SIZE 40
-					WIDTH 5.0
-				END
-                        END			
-			STYLE
-				SYMBOL "circle"
-				SIZE 8
-				COLOR 200 0 0
-				OUTLINECOLOR 30 30 30
-			END
-		END
-	END #layer
-
 
 
 	#==========
