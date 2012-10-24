@@ -24,9 +24,9 @@ SET search_path = own, pg_catalog;
 --
 
 CREATE TYPE geod_position AS (
-    x double precision,
-    y double precision,
-    h double precision
+x double precision,
+y double precision,
+h double precision
 );
 
 
@@ -37,8 +37,8 @@ ALTER TYPE own.geod_position OWNER TO tdc;
 --
 
 CREATE TYPE position_2d AS (
-    x double precision,
-    y double precision
+x double precision,
+y double precision
 );
 
 
@@ -49,9 +49,9 @@ ALTER TYPE own.position_2d OWNER TO tdc;
 --
 
 CREATE TYPE position_3d AS (
-    x double precision,
-    y double precision,
-    z double precision
+x double precision,
+y double precision,
+z double precision
 );
 
 
@@ -63,8 +63,7 @@ ALTER TYPE own.position_3d OWNER TO tdc;
 
 CREATE FUNCTION sv_point_after() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
-DECLARE
+    AS $$DECLARE
   nodegid bigint = NULL;
   spnid bigint = NULL;
 BEGIN
@@ -81,13 +80,13 @@ BEGIN
     IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
 
       --Akkor megnezi, hogy az uj sv_point-hoz van-e tp_node
-      SELECT n.gid INTO nodegid FROM tp_node AS n, sv_survey_point AS sp, sv_point as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.sv_survey_point;
+      SELECT n.gid INTO nodegid FROM tp_node AS n, sv_survey_point AS sp, sv_point as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.gid;
 
       --Ha van
       IF( nodegid IS NOT NULL ) THEN
 
         --Akkor update-elem, hogy aktivaljam a TRIGGER-et
-        UPDATE tp_node SET sv_survey_point=sv_survey_point WHERE gid=nodegid; 
+        UPDATE tp_node SET gid=gid WHERE gid=nodegid; 
   
       --Nincs
       ELSE 
@@ -96,7 +95,7 @@ BEGIN
         SELECT sp.nid INTO spnid FROM sv_survey_point AS sp WHERE sp.nid=NEW.sv_survey_point;
 
         --Letre hozok egy uj tp_node-ot
-        INSERT INTO tp_node (sv_survey_point) VALUES ( spnid );
+        INSERT INTO tp_node (gid) VALUES ( spnid );
 
       END IF;
 
@@ -106,7 +105,7 @@ BEGIN
     IF(TG_OP='UPDATE' OR TG_OP='DELETE') THEN
 
       --Akkor frissitem a regi sv_point-hoz tartozo tp_node-ot. Es igy a tp_node triggerei aktivalodnak
-      UPDATE tp_node AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.sv_survey_point=sp.nid;
+      UPDATE tp_node AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.gid=sp.nid;
 
     END IF;
 
@@ -206,8 +205,7 @@ ALTER FUNCTION own.tp_face_after() OWNER TO tdc;
 
 CREATE FUNCTION tp_face_before() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
-DECLARE
+    AS $$DECLARE
   result boolean;
 
   pointlisttext_start text = '(';
@@ -252,7 +250,7 @@ BEGIN
     FOREACH actualnode_gid IN ARRAY NEW.nodelist LOOP
 
       --csomopontok koordinatainak kideritese
-      SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode_gid AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode_gid AND n.gid=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
       
       --Veszem a kovetkezo pontot
       pointlisttext = pointlisttext || position.x || ' ' || position.y || ' ' || position.h || ',';
@@ -297,7 +295,7 @@ BEGIN
       FOREACH actualnode_gid IN ARRAY nodel LOOP
 
         --csomopontok koordinatainak kideritese
-        SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode_gid AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+        SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode_gid AND n.gid=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
 -----      
         --Veszem a kovetkezo pontot
         pointlisttext = pointlisttext || position.x || ' ' || position.y || ' ' || position.h || ',';
@@ -407,8 +405,7 @@ ALTER FUNCTION own.tp_node_after() OWNER TO tdc;
 
 CREATE FUNCTION tp_node_before() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
-DECLARE
+    AS $$DECLARE
   geomtext text = 'POINT(';
   geomtextend text = ')';
   position geod_position%rowtype;
@@ -422,7 +419,7 @@ BEGIN
   IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
 
     --Megkeresem uj tp_node-boz tartozo datum szerinti legutolso aktualis pont kooridinatait
-    SELECT p.x, p.y, p.h INTO position FROM sv_point AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.sv_survey_point=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+    SELECT p.x, p.y, p.h INTO position FROM sv_point AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.gid=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
 
     --Ha rendben van
     IF( position.x IS NOT NULL AND position.y IS NOT NULL AND position.h IS NOT NULL) THEN
@@ -449,8 +446,7 @@ ALTER FUNCTION own.tp_node_before() OWNER TO tdc;
 
 CREATE FUNCTION tp_volume_before() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
-    AS $$
-DECLARE
+    AS $$DECLARE
   result boolean;
   
   pointlisttext text = '';
@@ -504,7 +500,7 @@ BEGIN
       FOREACH actualnode IN ARRAY ndlist LOOP
 
         --csomopontok koordinatainak kideritese
-        SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+        SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode AND n.gid=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
       
         --Veszem a kovetkezo pontot
         pointlisttext = pointlisttext || position.x || ' ' || position.y || ' ' || position.h || ',';
@@ -1095,7 +1091,8 @@ ALTER SEQUENCE sv_survey_document_nid_seq OWNED BY sv_survey_document.nid;
 
 CREATE TABLE sv_survey_point (
     nid bigint NOT NULL,
-    description text
+    description text,
+    name text
 );
 
 
@@ -1139,7 +1136,8 @@ CREATE TABLE tp_face (
     gid bigint NOT NULL,
     nodelist bigint[] NOT NULL,
     geom public.geometry(PolygonZ),
-    holelist bigint[]
+    holelist bigint[],
+    note text
 );
 
 
@@ -1179,8 +1177,8 @@ ALTER SEQUENCE tp_face_gid_seq OWNED BY tp_face.gid;
 
 CREATE TABLE tp_node (
     gid bigint NOT NULL,
-    sv_survey_point bigint NOT NULL,
-    geom public.geometry(PointZ)
+    geom public.geometry(PointZ),
+    note text
 );
 
 
@@ -1310,13 +1308,6 @@ ALTER TABLE ONLY sv_survey_point ALTER COLUMN nid SET DEFAULT nextval('sv_survey
 --
 
 ALTER TABLE ONLY tp_face ALTER COLUMN gid SET DEFAULT nextval('tp_face_gid_seq'::regclass);
-
-
---
--- Name: gid; Type: DEFAULT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY tp_node ALTER COLUMN gid SET DEFAULT nextval('tp_node_gid_seq'::regclass);
 
 
 --
@@ -1631,14 +1622,6 @@ ALTER TABLE ONLY tp_node
 
 
 --
--- Name: tp_node_unique_sv_survey_point; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
---
-
-ALTER TABLE ONLY tp_node
-    ADD CONSTRAINT tp_node_unique_sv_survey_point UNIQUE (sv_survey_point);
-
-
---
 -- Name: tp_volume_facelist_key; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
 --
 
@@ -1749,6 +1732,14 @@ ALTER TABLE ONLY im_building_individual_unit_level
 
 ALTER TABLE ONLY im_building_individual_unit_level
     ADD CONSTRAINT im_individual_unit_level_fkey_im_building_im_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
+
+
+--
+-- Name: im_parcel_fkey_settlement; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+--
+
+ALTER TABLE ONLY im_parcel
+    ADD CONSTRAINT im_parcel_fkey_settlement FOREIGN KEY (im_settlement) REFERENCES im_settlement(name);
 
 
 --
@@ -1884,7 +1875,7 @@ ALTER TABLE ONLY sv_point
 --
 
 ALTER TABLE ONLY tp_node
-    ADD CONSTRAINT tp_node_fkey_sv_survey_point FOREIGN KEY (sv_survey_point) REFERENCES sv_survey_point(nid);
+    ADD CONSTRAINT tp_node_fkey_sv_survey_point FOREIGN KEY (gid) REFERENCES sv_survey_point(nid);
 
 
 --
