@@ -853,7 +853,6 @@ DECLARE
   facepart tp_facepart%rowtype;
 BEGIN
 
-
   --
   -- Update-lem  a tp_facepart-ot hogy aktivalodjon a tirggere es atvezesse a valtozasokat amiket itt vegeztem
   -- Torlest nem engedek, ha ez a node szerepel a tp_facepart-ban

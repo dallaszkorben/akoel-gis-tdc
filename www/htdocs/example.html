@@ -34,9 +34,11 @@
 		map = new OpenLayers.Map('mapDiv',
 		{
 			projection: "EPSG:2370",
-//			maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), //Ez a teljes magyarorszag
-			maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),  //Ez pedig a kijelolt telek
-			maxResolution: 910,
+			//maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), //Ez a teljes magyarorszag
+//			maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),  //Ez pedig a kijelolt telek
+			maxExtent: new OpenLayers.Bounds(645200, 227760, 645700, 228050),  //Ez pedig a kijelolt telek
+			//maxResolution: 901, //Ez magyarorszagra vonatkozo meret
+                        maxResolution: 0.8,
 			units: "m"
 		});
 

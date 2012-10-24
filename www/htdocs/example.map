@@ -1,8 +1,8 @@
 MAP
 	NAME		EX2_
 	IMAGETYPE	png24
-	#EXTENT	419500 24000 945000 365925
-	EXTENT		645407 227808 645670 227959
+	EXTENT	419500 24000 945000 365925
+	#EXTENT		645407 227808 645670 227959
 	SIZE		600 350
 	SHAPEPATH 	"../data"
 	SYMBOLSET	"../symbols/symbols35.sym"
@@ -57,7 +57,7 @@ MAP
 
 	#==========
 	#
-	# PARCEL for VIEW
+	# PARCEL POLYGON for VIEW
 	#
 	#==========
 
@@ -66,10 +66,67 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		#DATA "topo_geom from parcel_view"
-		DATA "the_geom from parcel"
+			
+		DATA "geom from (SELECT f.gid, f.geom, p.hrsz_main, CASE (hrsz_partial IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_partial END AS hrsz_partial, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE gid USING srid=2370"
+
 		STATUS DEFAULT
 		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+#		LABELITEM 'hrsz_main'
+
+		CLASS
+
+			NAME "normal"
+			STYLE
+				COLOR 100 100 255
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[hrsz_main][hrsz_partial]'
+			LABEL    
+				ANGLE [title_angle]    #hrsz dolesszoge
+				COLOR 255 0 0                           
+				FORCE FALSE
+				PARTIALS FALSE
+				FONT arial
+				TYPE TRUETYPE
+				POSITION CR					
+				MINDISTANCE 500
+				SIZE 10
+                         END	
+
+		END #class
+
+
+
+
+	END #layer
+
+
+	#==========
+	#
+	# PARCEL POINT for VIEW
+	#
+	#==========
+
+	LAYER
+		NAME "parcel_point_view"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom from (SELECT f.gid, f.geom FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE gid USING srid=2370"
+
+		STATUS DEFAULT
+		TYPE POINT
 		TOLERANCE 1
 
 		PROJECTION
@@ -79,14 +136,19 @@ MAP
 		CLASS
 			NAME "normal"
 			STYLE
-				COLOR 100 100 255
+				SYMBOL 'circle'
+				COLOR 255 0 0
+				OUTLINECOLOR 250 250 0
+				WIDTH 3
 			END
-			STYLE
-				OUTLINECOLOR 0 0 0
-				WIDTH 1
-			END
+#			STYLE
+#				SYMBOL 'circle'
+#				OUTLINECOLOR 0 0 0
+#				WIDTH 7
+#			END
 		END #class
 	END #layer
+
 
 
 	#==========
@@ -95,24 +157,24 @@ MAP
 	#
 	#==========
 
-	LAYER
-		NAME "border"					#layer neve
-		DATA border
-		STATUS DEFAULT
-		TYPE LINE
-	
-		FILTER "1=1"
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		CLASS
-			STYLE
-				COLOR 0 255 0
-				WIDTH 1
-			END
-		END
-	END #layer
+#	LAYER
+#		NAME "border"					#layer neve
+#		DATA border
+#		STATUS DEFAULT
+#		TYPE LINE
+#	
+#		FILTER "1=1"
+#		PROJECTION
+#			"init=epsg:2370"
+#		END
+#
+#		CLASS
+#			STYLE
+#				COLOR 0 255 0
+#				WIDTH 1
+#			END
+#		END
+#	END #layer
 
 
 
