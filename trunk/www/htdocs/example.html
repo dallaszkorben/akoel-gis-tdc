@@ -14,17 +14,23 @@
 	// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
 	Proj4js.defs["EPSG:2370"] = "+title=Hungarian EOV EPSG:2370 +proj=somerc +lat_0=47.14439372222222 +lon_0=19.04857177777778 +x_0=650000 +y_0=200000 +ellps=GRS67 +datum=HD72 +towgs84=57.01,-69.97,-9.29 +units=m +no_defs"
 
+	//MAP fajl eleresi utvonala
+	var urlMap = "http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map";
+
 	//Vetuletek
-	var wgs84=new OpenLayers.Projection('EPSG:4326');
+//	var wgs84=new OpenLayers.Projection('EPSG:4326');
 	var hd72=new OpenLayers.Projection('EPSG:2370');
 
+	//MAP objektum
 	var map;
 	var popup;
-	var queryLayer;
-	var viewLayer;
+
+	var identifyLayer;
+	var parcelViewLayer;
+	var buildingViewLayer;
+var parcelPointViewLayer;
 
 	var foundLayer = false;
-	var gid = 1;
 	
 	function init() {
 
@@ -46,8 +52,11 @@
 		// Controls
 		//---------
 		//map.addControl(new OpenLayers.Control.OverviewMap());
-		//map.addControl(new OpenLayers.Control.LayerSwitcher());
 
+		//Layerek ki/be kapcsolasa
+		map.addControl(new OpenLayers.Control.LayerSwitcher());
+
+		//Leptek
 		var scaleLine = new OpenLayers.Control.ScaleLine();
 		map.addControl( scaleLine );
 
@@ -59,44 +68,73 @@
 		var scaleControl = new OpenLayers.Control.Scale();
 		map.addControl( scaleControl);
 	    
-		var attribControl = new OpenLayers.Control.Attribution();
-		map.addControl( attribControl );
+//		var attribControl = new OpenLayers.Control.Attribution();
+//		map.addControl( attribControl );
 
-		//---------
-		// Layer-ek
-		//---------
 
-		queryLayer = new OpenLayers.Layer.WMS( 
-			"Kozos", 
-			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-//			{ layers:  "parcel_query_selected,building_query_selected", format: 'image/png' },
-			{ layers:  "parcel_query,building_query", format: 'image/png' },
-			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true }				
+		//--------------------------------------------------------------------------------------------
+		// A lathatosagi layerek
+		//
+		//  MapServer -nek kell lennie
+		//--------------------------------------------------------------------------------------------
+
+		parcelViewLayer = new OpenLayers.Layer.WMS( 
+			"Földrészlet", 
+			urlMap,
+			{ layers:  "parcel_view", format: 'image/png' , parcel_nid: null },
+			{ isBaseLayer: true, visibility: true, opacity: 1.0, transparent: 'true' }
 		);
 
-		viewLayer = new OpenLayers.Layer.MapServer( 
-			"Kozos", 
-			"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map",
-//			{ layers:  "building_view", format: 'image/png' , gid: 1 },
-			{ layers:  "parcel_view,building_view", format: 'image/png' , gid: 1 },
-			{ isBaseLayer: true, visibility: false, opacity: 1.0, transparent: true }				
+		buildingViewLayer = new OpenLayers.Layer.WMS( 
+			"Épület", 
+			urlMap,
+			{ layers:  "building_view", format: 'image/png' , building_nid: null },
+			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
+		);
+
+		parcelPointViewLayer = new OpenLayers.Layer.WMS( 
+			"Parcella pontok", 
+			urlMap,
+			{ layers:  "parcel_point_view", format: 'image/png' , building_nid: null },
+			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true'}				
+		);
+
+		//---------------------------------------------------------------------------------------------
+		// Lekerdezo layerek
+		//
+		// WMS -nek kell lennie
+		//---------------------------------------------------------------------------------------------
+		//visibility: false - Nem látható
+		//displayInLayerSwithcer: false - Nem lesz látható a Layer Swicherben
+		identifyLayer = new OpenLayers.Layer.WMS( 
+			"Közös kérés", 
+			urlMap,
+			{ layers:  "parcel_identify,building_identify", format: 'image/png' },
+			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 		);
 
 
 		//Fontos a sorrend. A kovetkezo mindig az elozo felett van
-		map.addLayers([queryLayer]);
-		map.addLayers([viewLayer]);
+		map.addLayer(identifyLayer);
+		map.addLayer(parcelViewLayer);
+		map.addLayer(buildingViewLayer);
+		//map.addLayers([parcelViewLayer, buildingViewLayer, parcelPointViewLayer]);
+
+
+//buildingViewLayer.setVisibility(false);
 	    
-		//---------------
-		// Esemenykezeles
-		//---------------
+		//===========	//
+		//				//
+		// Esemenykezeles	//
+		//				//
+		//===========	//
 	    
-		//---------------------
-		//Pozicio megjelenitese
-		//---------------------
+		//---------------------------------------------------
+		//Pozicio megjelenitese esemény
+		//---------------------------------------------------
 		map.events.register("click", map, function(e){
 	        
-			//Pozicio az ablak koordinata rendszereben
+/*			//Pozicio az ablak koordinata rendszereben
 			var pxPos=map.events.getMousePosition(e);
 	        
 			//Pozicio az aktuális vetületi rendszerben
@@ -109,42 +147,31 @@
 			var eovPos=projPos.clone().transform(hd72,hd72);
 	                
 			document.getElementById('posDiv').innerHTML="Page position: " + pxPos + "<br>" + "EOV: " + projPos + "<br>" + "WGS84: " + wgs84Pos + "<br>" + "hd72: " + eovPos;
+*/
+
 		}  );
 
-
-
-		//---------------------
-		//Megtudja, hogy milyen elemek lettek kivalasztva
-		//---------------------
-		map.events.register( "click", map, function(e){
-
-			var getInfoCommonURL=queryLayer.getFullRequestString({
-				REQUEST: "GetFeatureInfo",
-				EXCEPTIONS: "application/vnd.ogc.se_xml",
-				FORMAT: 'png',
-				BBOX: map.getExtent().toBBOX(),
-				X: e.xy.x,
-				Y: e.xy.y,
-				INFO_FORMAT: 'text/html',
-				QUERY_LAYERS:  "building_query_selected,parcel_query_selected",
+		//---------------------------------
+		//Kivalasztas esemény
+		//---------------------------------
+		map.events.register("click", map, function(e){
+			var getInfoCommonURL=identifyLayer.getFullRequestString({
+			REQUEST: "GetFeatureInfo",
+			EXCEPTIONS: "application/vnd.ogc.se_xml",
+			FORMAT: 'png',
+			BBOX: map.getExtent().toBBOX(),
+			X: e.xy.x,
+			Y: e.xy.y,
+			INFO_FORMAT: 'text/html',
+				//QUERY_LAYERS:  "building_query_selected,parcel_query_selected",
 				//QUERY_LAYERS:  "building_query,parcel_query", //Azok a layer-ek, amikrol infot akarok
-				FEATURE_COUNT: 1,
-				WIDTH: map.size.w,
-				HEIGHT: map.size.h });
-			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ showResult(response, e.xy )}});
+			QUERY_LAYERS:  "parcel_identify,building_identify", //Azok a layer-ek, amikrol infot akarok
+			FEATURE_COUNT: 1,
+			WIDTH: map.size.w,
+			HEIGHT: map.size.h });
+			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ highlightResult(response, e.xy )}});			
 		});
 
-
-/*		//---------------------
-		//Kiemeles
-		//---------------------
-		map.events.register( "click", map, function(e){
-
-			gid++;
-			viewLayer.params.parcel_gid =  gid;
-			viewLayer.redraw( true );
-		});
-*/
 	    //Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
 	    map.zoomToMaxExtent();
 	    
@@ -153,6 +180,138 @@
 	   
 	};
 	
+
+
+
+	//------------------------------
+	// Kiemelo fuggveny
+	//------------------------------
+	function highlightResult(response, xy){
+		var xmlDoc = $.parseXML( "<block>" + response.responseText + "</block>" );
+		var objs = $( $(xmlDoc)[0] ).find("object" );
+		var toDiv = "<html><head></head><body>Kivalasztott elemek<br>"
+
+		var selected_name;
+		var selected_nid;
+		var layerToQuery = "";
+
+		//Ha kattintottam de az nem objektum volt, akkor törli az összes kijelölést
+		if( objs.length == 0 ){
+			parcelViewLayer.params.parcel_nid =  null;
+			buildingViewLayer.params.building_nid =  null;
+			buildingViewLayer.redraw( true );
+			layerToQuery = ""
+
+		//Különben elvégzi a kijelölést
+		}else{
+			
+			//Ha a kijelölt objektum más objektummal tulajdoni viszonyban van
+			//De ehhez előbb fentről lefele meg kell találni a kijelölt objektumot
+			//Például ha egy házra kattintottam és az látható volt a térképen, akkor azt és az azzal kapcsolatos földterületet kell kijelölni
+
+			//BUILDING - Vegig az osszes "object" elemen 
+			for( i = 0; i< objs.length; i++){
+			
+				selected_name = $(objs[ i ]).attr("selected_name");
+				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;
+
+				//Ha ház volt
+				if( selected_name == "building"  && buildingViewLayer.getVisibility() ){
+					buildingViewLayer.params.building_nid =  selected_nid;
+					parcelViewLayer.params.parcel_nid =  null;
+					break
+				}
+			}//for
+
+			parcelViewLayer.redraw( true );
+			buildingViewLayer.redraw( true );
+
+		}
+
+/*
+		//Vegig az osszes "object" elemen
+		for( i = 0; i< objs.length; i++){
+			
+			objectName = $(objs[ i ]).attr("name");
+			objectId = $(objs[ i ]).find("id")[0].textContent;
+
+			//Objektum kiemelese
+			if( objectName == "parcel" && parcelViewLayer.getVisibility() ){
+				parcelViewLayer.params.parcel_nid =  objectId;
+				buildingViewLayer.params.building_nid =  null;
+//				parcelViewLayer.redraw( true );
+				layerToQuery = "parcel_query"
+				break;
+			}else if( objectName == "building"  && buildingViewLayer.getVisibility()){
+				buildingViewLayer.params.building_nid =  objectId;
+				buildingViewLayer.params.parcel_nid =  null;
+//				buildingViewLayer.redraw( true );
+				layerToQuery = "building_query"
+				break;
+			}else{
+				parcelViewLayer.params.parcel_nid =  null;
+				buildingViewLayer.params.building_nid =  null;
+//				buildingViewLayer.redraw( true );
+				layerToQuery = ""
+			}
+
+			//Megjelenitem
+			toDiv +=  "Objektum: <b>" + objectName + "</b>   azonosito: <b>" + objectId  + "</b><br>";
+		}
+
+		parcelViewLayer.redraw( true );
+		buildingViewLayer.redraw( true );
+}
+*/
+
+
+/*
+		//Megjelenites a dataDiv-ben
+		toDiv += "</body></html>"
+		document.getElementById( "dataDiv" ).innerHTML = toDiv;
+
+
+
+		//Ha mar van nyitva popup, akkor azt lezarja
+		if( popup ){
+			map.removePopup(popup);
+		}			
+		
+
+		//Query keres a kivalasztott objektumrol
+		var getInfo=queryLayer.getFullRequestString({
+				REQUEST: "GetFeatureInfo",
+				EXCEPTIONS: "application/vnd.ogc.se_xml",
+				FORMAT: 'png',
+				BBOX: map.getExtent().toBBOX(),
+				X: xy.x,
+				Y: xy.y,
+				INFO_FORMAT: 'text/html',
+				QUERY_LAYERS:  layerToQuery, //Ha tobb layert akarok lekerni, akkor vesszovel elvalasztva kell felsorolni
+				FEATURE_COUNT: 1,
+				WIDTH: map.size.w,
+				HEIGHT: map.size.h });
+		OpenLayers.Request.POST({ url: getInfo, callback: function(response){ 
+
+			//Eredmeny egy buborekba a kivalasztott ponthoz
+			popup = new OpenLayers.Popup.FramedCloud(
+	                        "chick", 
+	                        map.getLonLatFromPixel( xy ),
+	                        null, //new OpenLayers.Size(100,300),
+	                        response.responseText,
+	                        null,
+	                        true,
+	                        null
+	                   );
+
+			//Elhelyezi a buborekot-a terkepen
+			map.addPopup( popup );
+		}});
+*/
+
+
+	}
+
 
 
 	//---------------------

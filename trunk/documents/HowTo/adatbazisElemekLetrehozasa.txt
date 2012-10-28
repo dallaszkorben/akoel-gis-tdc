@@ -207,3 +207,17 @@ create trigger check_nodelist_for_face_2d_before_trigger BEFORE INSERT OR UPDATE
 --Kiprobaljuk a modositast
 update tp_face_2d set nodelist='{2,5,6,4}' where gid=2;
 
+
+
+
+
+--Ez lehet 1.Foldreszlet, 2.Foldreszlet hazzal, 3.Foldreszlet kulon hazzal
+SELECT 'parcel' AS sel_name, parcel.nid AS sel_nid, array_agg(person.name) AS owners, array_agg(r.share_numerator||'/'||r.share_denominator) AS share, document.sale_price AS price, document.date AS date, document.content as contract, face.geom AS geom
+
+FROM main.im_parcel AS parcel, main.tp_face AS face, main.rt_right AS r, main.pn_person AS person, main.rt_legal_document AS document
+
+WHERE parcel.nid=r.im_parcel AND r.pn_person=person.nid AND r.rt_type=1 AND face.gid=parcel.projection AND r.rt_legal_document=document.nid
+
+GROUP BY sel_nid, price, geom, date, contract
+
+
