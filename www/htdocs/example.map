@@ -10,6 +10,17 @@ MAP
 
 	TEMPLATEPATTERN 'example*'
 
+	OUTPUTFORMAT
+		NAME "png"
+		DRIVER AGG/PNG
+		MIMETYPE "image/png"
+		IMAGEMODE RGBA
+		EXTENSION "png"
+		TRANSPARENT ON
+#		FORMATOPTION "GAMMA=0.25"
+#		FORMATOPTION "INTERLACE=OFF"
+	END
+
 	WEB
 		TEMPLATE  'to be replaced by map_web_template variable in section2.html'
 		IMAGEPATH '/home/akoel/Projects/tdc/svn/www/htdocs/tmp/'
@@ -36,7 +47,7 @@ MAP
 			SIZE MEDIUM
 			COLOR 0 0 89
 		END
-		STATUS ON
+		STATUS OFF
 	END
   
 	SCALEBAR
@@ -51,25 +62,54 @@ MAP
 		UNITS MILES
 		INTERVALS 2
 		TRANSPARENT FALSE
-		STATUS ON
+		STATUS OFF
 	END # Scalebar object ends
 
 
-	#==========
+
+
+	#/////////////////////////////////////////////////////////
+	#/////////////                  //////////////////////////
+	#////////////  PARCEL  ///////////////////////////
+	#///////////                  ////////////////////////////
+	#/////////////////////////////////////////////////////////
+
+	#_____________________________________
+	#
+	# PARCEL POLYGON for IDENTIFY
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "parcel_identify"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		DATA "geom FROM (SELECT 'parcel' AS sel_name, p.nid AS sel_nid, f.geom, p.hrsz_main, CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction END AS hrsz_fractionl, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE sel_nid USING srid=2370"
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/identify.html'
+	END #layer
+
+	#_____________________________________
 	#
 	# PARCEL POLYGON for VIEW
 	#
-	#==========
+	#_____________________________________
 
 	LAYER
 		NAME "parcel_view"
 
 		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-			
-		DATA "geom from (SELECT f.gid, f.geom, p.hrsz_main, CASE (hrsz_partial IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_partial END AS hrsz_partial, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE gid USING srid=2370"
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT p.nid, f.geom, p.hrsz_main, CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction END AS hrsz_fraction, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
 
-		STATUS DEFAULT
+		STATUS OFF #DEFAULT
 		TYPE POLYGON
 		TOLERANCE 1
 
@@ -77,13 +117,34 @@ MAP
 			"init=epsg:2370"
 		END
 
-#		LABELITEM 'hrsz_main'
+		VALIDATION
+			"parcel_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
 
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+		CLASSITEM "nid"	
 		CLASS
+			NAME "highlited"
+			EXPRESSION  "%parcel_nid%"  
+			STYLE
+				COLOR 80 150 80
+			END
+			STYLE
+				OUTLINECOLOR 0 100 0
+				WIDTH 3
+			END
+		END #class
 
+
+		#--------------------------
+		# Normal elemek		
+		#--------------------------
+		CLASS
 			NAME "normal"
 			STYLE
-				COLOR 100 100 255
+				COLOR 100 255 100
 			END
 			STYLE
 				OUTLINECOLOR 0 0 0
@@ -91,50 +152,53 @@ MAP
 			END
 
 			#A megjelenitendo hrsz formatuma
-			TEXT '[hrsz_main][hrsz_partial]'
+			TEXT '[hrsz_main][hrsz_fraction]'
 			LABEL    
 				ANGLE [title_angle]    #hrsz dolesszoge
 				COLOR 255 0 0                           
+				SIZE 11
+
 				FORCE FALSE
 				PARTIALS FALSE
-				FONT arial
+				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CR					
 				MINDISTANCE 500
-				SIZE 10
-                         END	
 
+				STYLE
+					GEOMTRANSFORM 'labelpoly'
+					 COLOR 200 200 200
+					OFFSET 0 0
+				END #style
+                         END #label
 		END #class
-
-
-
 
 	END #layer
 
 
-	#==========
+	#=================
 	#
 	# PARCEL POINT for VIEW
 	#
-	#==========
+	#=================
 
 	LAYER
 		NAME "parcel_point_view"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom from (SELECT f.gid, f.geom FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE gid USING srid=2370"
+		DATA "geom FROM (SELECT p.nid, f.geom FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
 
-		STATUS DEFAULT
+		STATUS OFF #DEFAULT
 		TYPE POINT
-		TOLERANCE 1
+#		TOLERANCE 1
 
 		PROJECTION
 			"init=epsg:2370"
 		END
 
 		CLASS
-			NAME "normal"
+			NAME "normal3"
 			STYLE
 				SYMBOL 'circle'
 				COLOR 255 0 0
@@ -148,6 +212,123 @@ MAP
 #			END
 		END #class
 	END #layer
+
+
+	#/////////////////////////////////////////////////////////
+	#/////////////                    ////////////////////////
+	#////////////  BUILDING /////////////////////////
+	#///////////                    //////////////////////////
+	#/////////////////////////////////////////////////////////
+
+	#_____________________________________
+	#
+	# BUILDING POLYGON for IDENTIFY
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "building_identify"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM 
+			(SELECT 'building' AS sel_name, b.nid AS sel_nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle 
+			FROM main.im_building AS b, main.tp_face AS f 
+			WHERE b.projection=f.gid) 
+			AS subquery USING UNIQUE sel_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/identify.html'
+	END #layer
+
+
+	#_____________________________________
+	#
+	# BUILDING POLYGON for VIEW
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "building_view"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+			
+		DATA "geom from (SELECT b.nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
+
+		STATUS OFF #DEFAULT
+		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"building_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+		CLASSITEM "nid"	
+		CLASS
+			NAME "highlited2"
+			EXPRESSION  "%building_nid%"  
+			STYLE
+				COLOR 80 80 150
+			END
+			STYLE
+				OUTLINECOLOR 0 0 100
+				WIDTH 3
+			END
+		END #class
+
+		#--------------------------
+		# Normál elemek		
+		#--------------------------
+		CLASS
+			NAME "normal2"
+			STYLE
+				COLOR 000 000 255
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[hrsz_eoi]'
+			LABEL    
+				ANGLE [title_angle]    #hrsz dolesszoge
+
+				COLOR 255 255 0                           
+				FORCE FALSE
+				PARTIALS FALSE
+				FONT arial
+				TYPE TRUETYPE
+				POSITION CR					
+				MINDISTANCE 1300
+				SIZE 15
+
+				STYLE
+					GEOMTRANSFORM 'labelpoly'
+					 COLOR 200 200 200
+					OFFSET 0 0
+				END
+                         END	
+
+		END #class
+
+	END #layer
+
+
 
 
 
