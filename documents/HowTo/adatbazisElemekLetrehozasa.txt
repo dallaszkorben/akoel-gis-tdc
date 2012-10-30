@@ -211,13 +211,149 @@ update tp_face_2d set nodelist='{2,5,6,4}' where gid=2;
 
 
 
---Ez lehet 1.Foldreszlet, 2.Foldreszlet hazzal, 3.Foldreszlet kulon hazzal
-SELECT 'parcel' AS sel_name, parcel.nid AS sel_nid, array_agg(person.name) AS owners, array_agg(r.share_numerator||'/'||r.share_denominator) AS share, document.sale_price AS price, document.date AS date, document.content as contract, face.geom AS geom
-
-FROM main.im_parcel AS parcel, main.tp_face AS face, main.rt_right AS r, main.pn_person AS person, main.rt_legal_document AS document
-
-WHERE parcel.nid=r.im_parcel AND r.pn_person=person.nid AND r.rt_type=1 AND face.gid=parcel.projection AND r.rt_legal_document=document.nid
-
-GROUP BY sel_nid, price, geom, date, contract
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+---------------------
+-- 1. Foldreszlet ---
+---------------------
+--
+-- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+--
+SELECT 
+  'parcel' AS selected_name, 
+  parcel.nid AS selected_nid,
+  parcel.im_settlement AS selected_settlement,
+  main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AS selected_hrsz,
+  'Földrészlet épülettel' AS immovable_type, 
+  array_agg(person.name) AS owners,
+  array_agg(r.share_numerator||'/'||r.share_denominator) AS share,
+  document.sale_price AS sale_price,
+  document.date AS contract_date,
+  document.content AS contract
+FROM main.im_parcel parcel, main.rt_right r, main.im_building building, main.pn_person person, main.rt_legal_document document
+WHERE 
+   parcel.nid=r.im_parcel AND
+   r.rt_legal_document=document.nid AND
+   r.rt_type=1 AND
+   r.pn_person=person.nid AND
+   coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building)
+GROUP BY selected_nid, sale_price, contract, contract_date;
+
+--------------------------------
+--2. Foldreszlet az epulettel --
+--------------------------------
+--
+-- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+--
+
+SELECT
+  'parcel' AS selected_name, 
+  parcel.nid AS selected_nid,
+  parcel.im_settlement AS selected_settlement,
+  main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AS selected_hrsz,
+  'Földrészlet épülettel' AS immovable_type, 
+  array_agg(person.name) AS owners,
+  array_agg(r.share_numerator||'/'||r.share_denominator) AS share,
+  document.sale_price AS sale_price,
+  document.date AS contract_date,
+  document.content AS contract
+FROM main.im_parcel parcel, main.rt_right r, main.im_building building, main.pn_person person, main.rt_legal_document document
+WHERE 
+   parcel.nid=r.im_parcel AND 
+   r.rt_legal_document=document.nid AND
+   r.rt_type=1 AND
+   r.pn_person=person.nid AND
+   building.im_settlement=parcel.im_settlement AND 
+   building.hrsz_main=parcel.hrsz_main AND 
+   building.hrsz_fraction=parcel.hrsz_fraction AND
+   building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 )
+GROUP BY selected_nid, sale_price, contract, contract_date;
+
+
+----------------------------------------
+-- 3. Foldreszlet kulonallo epulettel --
+----------------------------------------
+--
+-- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+--
+
+SELECT 
+  'parcel' AS selected_name, 
+  parcel.nid AS selected_nid,
+  parcel.im_settlement AS selected_settlement,
+  main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AS selected_hrsz,
+  'Földrészlet, különálló épülettel' AS immovable_type, 
+  array_agg(person.name) AS owners,
+  array_agg(r.share_numerator||'/'||r.share_denominator) AS share,
+  document.sale_price AS sale_price,
+  document.date AS contract_date,
+  document.content AS contract
+FROM main.im_parcel parcel, main.rt_right r, main.im_building building, main.pn_person person, main.rt_legal_document document
+WHERE 
+   parcel.nid=r.im_parcel AND 
+   r.rt_legal_document=document.nid AND
+   r.rt_type=1 AND
+   r.pn_person=person.nid AND
+   building.im_settlement=parcel.im_settlement AND 
+   building.hrsz_main=parcel.hrsz_main AND 
+   building.hrsz_fraction=parcel.hrsz_fraction AND
+   building.nid=r.im_building
+GROUP BY selected_nid, sale_price, contract, contract_date;
+
+------------------
+-- 4. Tarsashaz --
+------------------
+--
+-- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+--
+
+SELECT
+ 'parcel' AS selected_name, 
+  parcel.nid AS selected_nid,
+  parcel.im_settlement AS selected_settlement,
+  main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AS selected_hrsz,
+  'Földrészleten társasházi ingatlan' AS immovable_type, 
+  array_agg(person.name) AS owners,
+  array_agg(r.share_numerator||'/'||r.share_denominator) AS share,
+  document.sale_price AS sale_price,
+  document.date AS contract_date,
+  document.content AS contract
+FROM main.im_parcel parcel, main.rt_right r, main.im_building building, main.im_building_individual_unit indunit, main.pn_person person, main.rt_legal_document document
+WHERE 
+  building.im_settlement=parcel.im_settlement AND
+  building.hrsz_main=parcel.hrsz_main AND 
+  building.hrsz_fraction=parcel.hrsz_fraction AND
+  building.nid=indunit.im_building AND
+  indunit.nid=r.im_building_individual_unit AND
+  r.rt_legal_document=document.nid AND
+  r.rt_type=1 AND
+  r.pn_person=person.nid
+GROUP BY selected_nid, sale_price, contract, contract_date;
+
+
+
+create type parcel_with_data AS
+(selected_name text,
+selected_nid bigint,
+selected_settlement text,
+selected_hrsz text,
+connected_name text[],
+connected_nid bigint[],
+immovable_type integer,
+owners text[],
+share text[],
+sale_price numeric(12,2),
+contract_date date,
+contract_text text)

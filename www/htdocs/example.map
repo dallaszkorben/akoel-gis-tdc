@@ -10,6 +10,7 @@ MAP
 
 	TEMPLATEPATTERN 'example*'
 
+	#Azert kell, hogy a layer-ek atlatszoak legyenek
 	OUTPUTFORMAT
 		NAME "png"
 		DRIVER AGG/PNG
@@ -40,30 +41,30 @@ MAP
 	END
 
 	# Start of legend
-	LEGEND
-		KEYSIZE 12 12
-		LABEL
-			TYPE BITMAP
-			SIZE MEDIUM
-			COLOR 0 0 89
-		END
-		STATUS OFF
-	END
-  
-	SCALEBAR
-		IMAGECOLOR 255 255 255
-		LABEL
-			COLOR 0 0 0
-			SIZE TINY
-		END
-		STYLE 1
-		SIZE 100 2
-		COLOR 0 0 0
-		UNITS MILES
-		INTERVALS 2
-		TRANSPARENT FALSE
-		STATUS OFF
-	END # Scalebar object ends
+#	LEGEND
+#		KEYSIZE 12 12
+#		LABEL
+#			TYPE BITMAP
+#			SIZE MEDIUM
+#			COLOR 0 0 89
+#		END
+#		STATUS OFF
+#	END
+#
+#	SCALEBAR
+#		IMAGECOLOR 255 255 255
+#		LABEL
+#			COLOR 0 0 0
+#			SIZE TINY
+#		END
+#		STYLE 1
+#		SIZE 100 2
+#		COLOR 0 0 0
+#		UNITS MILES
+#		INTERVALS 2
+#		TRANSPARENT FALSE
+#		STATUS OFF
+#	END # Scalebar object ends
 
 
 
@@ -85,7 +86,9 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "geom FROM (SELECT 'parcel' AS sel_name, p.nid AS sel_nid, f.geom, p.hrsz_main, CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction END AS hrsz_fractionl, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE sel_nid USING srid=2370"
+#		DATA "geom FROM (SELECT 'im_parcel' AS selected_name, p.nid AS selected_nid, f.geom  FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		DATA "geom FROM (SELECT * FROM main.parcels_with_data() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -94,6 +97,31 @@ MAP
 		END
 		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
 		TEMPLATE 'templates/identify.html'
+	END #layer
+
+	#_____________________________________
+	#
+	# PARCEL POLYGON for QUERY
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "parcel_query"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		DATA "geom FROM (SELECT 'im_parcel' AS selected_name, p.nid AS selected_nid, f.geom  FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/parcel_query.html'
+
 	END #layer
 
 	#_____________________________________
@@ -107,7 +135,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT p.nid, f.geom, p.hrsz_main, CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction END AS hrsz_fraction, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
+		DATA "geom FROM (SELECT p.nid AS nid, f.geom, main.hrsz_concat(p.hrsz_main, p.hrsz_fraction ) AS hrsz, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid ) AS subquery USING UNIQUE nid USING srid=2370"
 
 		STATUS OFF #DEFAULT
 		TYPE POLYGON
@@ -120,6 +148,9 @@ MAP
 		VALIDATION
 			"parcel_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
+
+
+
 
 		#--------------------------
 		# Kiemelt elemek		
@@ -152,7 +183,7 @@ MAP
 			END
 
 			#A megjelenitendo hrsz formatuma
-			TEXT '[hrsz_main][hrsz_fraction]'
+			TEXT '[hrsz]'
 			LABEL    
 				ANGLE [title_angle]    #hrsz dolesszoge
 				COLOR 255 0 0                           
@@ -231,11 +262,12 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM 
-			(SELECT 'building' AS sel_name, b.nid AS sel_nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle 
-			FROM main.im_building AS b, main.tp_face AS f 
-			WHERE b.projection=f.gid) 
-			AS subquery USING UNIQUE sel_nid USING srid=2370"
+#		DATA "geom FROM 
+#			(SELECT 'building' AS sel_name, b.nid AS sel_nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle 
+#			FROM main.im_building AS b, main.tp_face AS f 
+#			WHERE b.projection=f.gid) 
+#			AS subquery USING UNIQUE sel_nid USING srid=2370"
+		DATA "geom FROM (SELECT 'im_building' AS selected_name, b.nid AS selected_nid, f.geom  FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -271,7 +303,7 @@ MAP
 		END
 
 		VALIDATION
-			"building_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"highlighted_building_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
 		#--------------------------
@@ -279,8 +311,8 @@ MAP
 		#--------------------------
 		CLASSITEM "nid"	
 		CLASS
-			NAME "highlited2"
-			EXPRESSION  "%building_nid%"  
+			NAME "highlited"
+			EXPRESSION  "%highlighted_building_nid%"  
 			STYLE
 				COLOR 80 80 150
 			END
@@ -294,7 +326,7 @@ MAP
 		# Normál elemek		
 		#--------------------------
 		CLASS
-			NAME "normal2"
+			NAME "normal"
 			STYLE
 				COLOR 000 000 255
 			END
@@ -328,6 +360,96 @@ MAP
 
 	END #layer
 
+
+	#/////////////////////////////////////////////////////////
+	#//////////                                             //
+	#////////  TARSASHAZAK UNIT-JAI    ///
+	#///////                                              ////
+	#/////////////////////////////////////////////////////////
+
+	#_____________________________________
+	#
+	# BUILDING UNIT for IDENTIFY
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "building_unit_identify"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT 'im_building' AS selected_name, b.nid AS selected_nid, f.geom  FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+#		TEMPLATE 'templates/identify.html'
+	END #layer
+
+
+	#_____________________________________
+	#
+	# BUILDING UNIT for VIEW
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "building_unit_view"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+			
+DATA "geom FROM (SELECT unit.nid, face.geom AS geom FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_levels% ) AS subquery USING UNIQUE nid USING srid=2370"
+
+#DATA "geom from (SELECT b.nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid AND nid=-1) AS subquery USING UNIQUE nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"visible_building_levels"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"highlighted_unit_nid"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
+		END
+
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+		CLASSITEM "nid"	
+		CLASS
+			NAME "highlited"
+			EXPRESSION  "%highlighted_unit_nid%"  
+			STYLE
+				COLOR 0 75 165
+			END
+			STYLE
+				OUTLINECOLOR 0 25 61
+				WIDTH 3
+			END
+		END #class
+
+		#--------------------------
+		# Normál elemek		
+		#--------------------------
+		CLASS
+			NAME "normal"
+			STYLE
+				COLOR 000 100 255
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+		END #class
+	END #layer
 
 
 

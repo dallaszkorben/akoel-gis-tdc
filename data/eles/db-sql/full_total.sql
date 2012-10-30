@@ -9,18 +9,28 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 
 --
--- Name: own; Type: SCHEMA; Schema: -; Owner: tdc
+-- Name: main; Type: SCHEMA; Schema: -; Owner: tdc
 --
 
-CREATE SCHEMA own;
+CREATE SCHEMA main;
 
 
-ALTER SCHEMA own OWNER TO tdc;
-
-SET search_path = own, pg_catalog;
+ALTER SCHEMA main OWNER TO tdc;
 
 --
--- Name: geod_position; Type: TYPE; Schema: own; Owner: tdc
+-- Name: SCHEMA main; Type: COMMENT; Schema: -; Owner: tdc
+--
+
+COMMENT ON SCHEMA main IS 'Itt helyezkednek el a saját
+-Tábláim
+-Függvényeim
+-Triggereim';
+
+
+SET search_path = main, pg_catalog;
+
+--
+-- Name: geod_position; Type: TYPE; Schema: main; Owner: tdc
 --
 
 CREATE TYPE geod_position AS (
@@ -30,35 +40,107 @@ h double precision
 );
 
 
-ALTER TYPE own.geod_position OWNER TO tdc;
+ALTER TYPE main.geod_position OWNER TO tdc;
 
 --
--- Name: position_2d; Type: TYPE; Schema: own; Owner: tdc
+-- Name: parcel_with_data; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE position_2d AS (
-    x double precision,
-    y double precision
+CREATE TYPE parcel_with_data AS (
+selected_projection bigint,
+selected_name text,
+selected_nid bigint,
+immovable_type integer
 );
 
 
-ALTER TYPE own.position_2d OWNER TO tdc;
+ALTER TYPE main.parcel_with_data OWNER TO tdc;
 
 --
--- Name: position_3d; Type: TYPE; Schema: own; Owner: tdc
+-- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE TYPE position_3d AS (
-    x double precision,
-    y double precision,
-    z double precision
-);
+CREATE FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $_$
+DECLARE
+  output text;
+BEGIN
+  output := hrsz_main::text||CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction::text END;
+  return output;
+END;
+$_$;
 
 
-ALTER TYPE own.position_3d OWNER TO tdc;
+ALTER FUNCTION main.hrsz_concat(hrsz_main integer, hrsz_fraction integer) OWNER TO tdc;
 
 --
--- Name: sv_point_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: parcels_with_data(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION parcels_with_data() RETURNS SETOF parcel_with_data
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.parcel_with_data%rowtype;
+BEGIN
+
+
+  ---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  FOR output IN
+    SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      'im_parcel' AS selected_name, 
+      parcel.nid AS selected_nid,
+      1 AS immovable_type
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r
+    WHERE 
+       parcel.nid=r.im_parcel AND      
+       r.rt_type=1 AND
+       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+  FOR output IN
+     SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      'im_parcel' AS selected_name, 
+      parcel.nid AS selected_nid,
+      2 AS immovable_type
+    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+    WHERE 
+      parcel.nid=r.im_parcel AND 
+      r.rt_type=1 AND
+      building.im_settlement=parcel.im_settlement AND 
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+
+  RETURN;
+END;
+$$;
+
+
+ALTER FUNCTION main.parcels_with_data() OWNER TO tdc;
+
+--
+-- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION sv_point_after() RETURNS trigger
@@ -115,10 +197,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.sv_point_after() OWNER TO tdc;
+ALTER FUNCTION main.sv_point_after() OWNER TO tdc;
 
 --
--- Name: sv_point_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: sv_point_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION sv_point_before() RETURNS trigger
@@ -152,10 +234,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.sv_point_before() OWNER TO tdc;
+ALTER FUNCTION main.sv_point_before() OWNER TO tdc;
 
 --
--- Name: tp_face_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_face_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_face_after() RETURNS trigger
@@ -197,10 +279,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_face_after() OWNER TO tdc;
+ALTER FUNCTION main.tp_face_after() OWNER TO tdc;
 
 --
--- Name: tp_face_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_face_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_face_before() RETURNS trigger
@@ -329,10 +411,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_face_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_face_before() OWNER TO tdc;
 
 --
--- Name: tp_node_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_node_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_node_after() RETURNS trigger
@@ -397,10 +479,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_node_after() OWNER TO tdc;
+ALTER FUNCTION main.tp_node_after() OWNER TO tdc;
 
 --
--- Name: tp_node_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_node_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_node_before() RETURNS trigger
@@ -438,10 +520,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_node_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_node_before() OWNER TO tdc;
 
 --
--- Name: tp_volume_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_volume_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_volume_before() RETURNS trigger
@@ -548,14 +630,14 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_volume_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_volume_before() OWNER TO tdc;
 
 SET default_tablespace = '';
 
 SET default_with_oids = false;
 
 --
--- Name: im_building; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building (
@@ -567,21 +649,22 @@ CREATE TABLE im_building (
     model bigint,
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
-    hrsz_fraction integer NOT NULL
+    hrsz_fraction integer,
+    title_angle numeric(4,2)
 );
 
 
-ALTER TABLE own.im_building OWNER TO tdc;
+ALTER TABLE main.im_building OWNER TO tdc;
 
 --
--- Name: TABLE im_building; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building IS 'Az épületeket reprezentáló tábla';
 
 
 --
--- Name: im_building_individual_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_individual_unit (
@@ -591,37 +674,40 @@ CREATE TABLE im_building_individual_unit (
 );
 
 
-ALTER TABLE own.im_building_individual_unit OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_building_individual_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_individual_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_individual_unit IS 'A társasházakban elhelyezkedő önállóan forgalomképes ingatlanok, lakások, üzlethelyiségek';
 
 
 --
--- Name: im_building_individual_unit_level; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit_level; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_individual_unit_level (
     im_building bigint NOT NULL,
     hrsz_unit integer NOT NULL,
-    im_levels text NOT NULL
+    projection bigint,
+    im_levels bigint NOT NULL,
+    area integer,
+    volume integer
 );
 
 
-ALTER TABLE own.im_building_individual_unit_level OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit_level OWNER TO tdc;
 
 --
--- Name: TABLE im_building_individual_unit_level; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_individual_unit_level; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_individual_unit_level IS 'Társasházban található önálóan forgalomképes helyiségek szintjeit határozza meg. (mivel egy helyiség akár több szinten is elhelyezkedhet)';
 
 
 --
--- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_building_individual_unit_nid_seq
@@ -632,43 +718,93 @@ CREATE SEQUENCE im_building_individual_unit_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_building_individual_unit_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit_nid_seq OWNER TO tdc;
 
 --
--- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_building_individual_unit_nid_seq OWNED BY im_building_individual_unit.nid;
 
 
 --
--- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('im_building_individual_unit_nid_seq', 1, false);
 
 
 --
--- Name: im_building_levels; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_level_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE TABLE im_building_level_unit (
+    im_building bigint NOT NULL,
+    im_levels bigint NOT NULL,
+    area integer,
+    volume integer,
+    model bigint
+);
+
+
+ALTER TABLE main.im_building_level_unit OWNER TO tdc;
+
+--
+-- Name: TABLE im_building_level_unit; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON TABLE im_building_level_unit IS 'Egy szintet képvisel egy családi háznál';
+
+
+--
+-- Name: im_building_level_unig_volume_seq; Type: SEQUENCE; Schema: main; Owner: tdc
+--
+
+CREATE SEQUENCE im_building_level_unig_volume_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE main.im_building_level_unig_volume_seq OWNER TO tdc;
+
+--
+-- Name: im_building_level_unig_volume_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
+--
+
+ALTER SEQUENCE im_building_level_unig_volume_seq OWNED BY im_building_level_unit.volume;
+
+
+--
+-- Name: im_building_level_unig_volume_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
+--
+
+SELECT pg_catalog.setval('im_building_level_unig_volume_seq', 1, false);
+
+
+--
+-- Name: im_building_levels; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_levels (
     im_building bigint NOT NULL,
-    im_levels text NOT NULL
+    im_levels bigint NOT NULL
 );
 
 
-ALTER TABLE own.im_building_levels OWNER TO tdc;
+ALTER TABLE main.im_building_levels OWNER TO tdc;
 
 --
--- Name: TABLE im_building_levels; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_levels; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_levels IS 'Egy adott épületen belül előforduló szintek';
 
 
 --
--- Name: im_building_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_building_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_building_nid_seq
@@ -679,24 +815,24 @@ CREATE SEQUENCE im_building_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_building_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_building_nid_seq OWNER TO tdc;
 
 --
--- Name: im_building_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_building_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_building_nid_seq OWNED BY im_building.nid;
 
 
 --
--- Name: im_building_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: im_building_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('im_building_nid_seq', 1, false);
 
 
 --
--- Name: im_building_shared_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_shared_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_shared_unit (
@@ -705,35 +841,64 @@ CREATE TABLE im_building_shared_unit (
 );
 
 
-ALTER TABLE own.im_building_shared_unit OWNER TO tdc;
+ALTER TABLE main.im_building_shared_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_building_shared_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_shared_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_shared_unit IS 'A társasházak közös helyiségei';
 
 
 --
--- Name: im_levels; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_levels (
-    name text NOT NULL
+    name text NOT NULL,
+    nid bigint NOT NULL
 );
 
 
-ALTER TABLE own.im_levels OWNER TO tdc;
+ALTER TABLE main.im_levels OWNER TO tdc;
 
 --
--- Name: TABLE im_levels; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_levels; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_levels IS 'Az összes előforduló szint megnevezése az épületekben';
 
 
 --
--- Name: im_parcel; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
+--
+
+CREATE SEQUENCE im_levels_nid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE main.im_levels_nid_seq OWNER TO tdc;
+
+--
+-- Name: im_levels_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
+--
+
+ALTER SEQUENCE im_levels_nid_seq OWNED BY im_levels.nid;
+
+
+--
+-- Name: im_levels_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
+--
+
+SELECT pg_catalog.setval('im_levels_nid_seq', 17, true);
+
+
+--
+-- Name: im_parcel; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_parcel (
@@ -741,16 +906,17 @@ CREATE TABLE im_parcel (
     area integer NOT NULL,
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
-    hrsz_partial integer,
+    hrsz_fraction integer,
     projection bigint NOT NULL,
-    model bigint
+    model bigint,
+    title_angle numeric(4,2) DEFAULT 0
 );
 
 
-ALTER TABLE own.im_parcel OWNER TO tdc;
+ALTER TABLE main.im_parcel OWNER TO tdc;
 
 --
--- Name: TABLE im_parcel; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_parcel; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_parcel IS 'Ez az ugynevezett földrészlet.
@@ -758,7 +924,14 @@ Az im_parcel-ek topologiát alkotnak';
 
 
 --
--- Name: im_settlement; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: COLUMN im_parcel.title_angle; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON COLUMN im_parcel.title_angle IS 'A helyrajziszám dőlésszöge';
+
+
+--
+-- Name: im_settlement; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_settlement (
@@ -766,17 +939,17 @@ CREATE TABLE im_settlement (
 );
 
 
-ALTER TABLE own.im_settlement OWNER TO tdc;
+ALTER TABLE main.im_settlement OWNER TO tdc;
 
 --
--- Name: TABLE im_settlement; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_settlement; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_settlement IS 'Magyarorszag településeinek neve';
 
 
 --
--- Name: im_shared_unit_level; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_shared_unit_level; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_shared_unit_level (
@@ -786,17 +959,17 @@ CREATE TABLE im_shared_unit_level (
 );
 
 
-ALTER TABLE own.im_shared_unit_level OWNER TO tdc;
+ALTER TABLE main.im_shared_unit_level OWNER TO tdc;
 
 --
--- Name: TABLE im_shared_unit_level; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_shared_unit_level; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_shared_unit_level IS 'Társasházakban a közös helyiségek, fő épületszerkezeti elemek szintjeit határozza meg. (mivel a közös helyiségek akár több szinten is elhelyezkedhetnek)';
 
 
 --
--- Name: im_underpass; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass (
@@ -811,10 +984,10 @@ CREATE TABLE im_underpass (
 );
 
 
-ALTER TABLE own.im_underpass OWNER TO tdc;
+ALTER TABLE main.im_underpass OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass IS 'Aluljárók tábla.
@@ -823,7 +996,7 @@ Rendelkeznie kell vetülettel és lehetőség szerint 3D modellel is';
 
 
 --
--- Name: im_underpass_block; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_block; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_block (
@@ -833,17 +1006,17 @@ CREATE TABLE im_underpass_block (
 );
 
 
-ALTER TABLE own.im_underpass_block OWNER TO tdc;
+ALTER TABLE main.im_underpass_block OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_block; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_block; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_block IS 'Ezek az objektumok foglaljak egybe az aluljáróban található üzleteket. Tulajdonképpen analógok a Building-gel társasház esetén';
 
 
 --
--- Name: im_underpass_individual_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_individual_unit (
@@ -855,10 +1028,10 @@ CREATE TABLE im_underpass_individual_unit (
 );
 
 
-ALTER TABLE own.im_underpass_individual_unit OWNER TO tdc;
+ALTER TABLE main.im_underpass_individual_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_individual_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_individual_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_individual_unit IS 'Ezek az ingatlantípusok az aluljárókban lévő üzletek. 
@@ -866,7 +1039,7 @@ EÖI';
 
 
 --
--- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_underpass_individual_unit_nid_seq
@@ -877,24 +1050,24 @@ CREATE SEQUENCE im_underpass_individual_unit_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_underpass_individual_unit_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_underpass_individual_unit_nid_seq OWNER TO tdc;
 
 --
--- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_underpass_individual_unit_nid_seq OWNED BY im_underpass_individual_unit.nid;
 
 
 --
--- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('im_underpass_individual_unit_nid_seq', 1, false);
 
 
 --
--- Name: im_underpass_shared_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_shared_unit (
@@ -903,17 +1076,17 @@ CREATE TABLE im_underpass_shared_unit (
 );
 
 
-ALTER TABLE own.im_underpass_shared_unit OWNER TO tdc;
+ALTER TABLE main.im_underpass_shared_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_shared_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_shared_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_shared_unit IS 'Ez az egység reprezentálja az aluljáróban lévő üzletek közös részét -ami mindenkihez tartozik és közösen fizetik a fenntartási költségeit';
 
 
 --
--- Name: pn_person; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE pn_person (
@@ -922,37 +1095,38 @@ CREATE TABLE pn_person (
 );
 
 
-ALTER TABLE own.pn_person OWNER TO tdc;
+ALTER TABLE main.pn_person OWNER TO tdc;
 
 --
--- Name: TABLE pn_person; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE pn_person; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE pn_person IS 'Ez a személyeket tartalmazó tábla. Ide tartoznak természtes és jogi személyek is';
 
 
 --
--- Name: rt_legal_document; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_legal_document; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_legal_document (
     nid bigint NOT NULL,
     content text NOT NULL,
-    date date NOT NULL
+    date date NOT NULL,
+    sale_price numeric(12,2)
 );
 
 
-ALTER TABLE own.rt_legal_document OWNER TO tdc;
+ALTER TABLE main.rt_legal_document OWNER TO tdc;
 
 --
--- Name: TABLE rt_legal_document; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_legal_document; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_legal_document IS 'Azon dokumentumok, melyek alapján egy személy valamilyen jogi kapcsolatba került egy ingatlannal';
 
 
 --
--- Name: rt_legal_document_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: rt_legal_document_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE rt_legal_document_nid_seq
@@ -963,24 +1137,24 @@ CREATE SEQUENCE rt_legal_document_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.rt_legal_document_nid_seq OWNER TO tdc;
+ALTER TABLE main.rt_legal_document_nid_seq OWNER TO tdc;
 
 --
--- Name: rt_legal_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: rt_legal_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE rt_legal_document_nid_seq OWNED BY rt_legal_document.nid;
 
 
 --
--- Name: rt_legal_document_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: rt_legal_document_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('rt_legal_document_nid_seq', 1, false);
 
 
 --
--- Name: rt_right; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_right; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_right (
@@ -997,17 +1171,17 @@ CREATE TABLE rt_right (
 );
 
 
-ALTER TABLE own.rt_right OWNER TO tdc;
+ALTER TABLE main.rt_right OWNER TO tdc;
 
 --
--- Name: TABLE rt_right; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_right; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_right IS 'Jogok. Ez a tábla köti össze a személyt egy ingatlannal valamilyen jogi dokumentum alapján. ';
 
 
 --
--- Name: rt_type; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_type (
@@ -1016,17 +1190,17 @@ CREATE TABLE rt_type (
 );
 
 
-ALTER TABLE own.rt_type OWNER TO tdc;
+ALTER TABLE main.rt_type OWNER TO tdc;
 
 --
--- Name: TABLE rt_type; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_type; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_type IS 'Itt szerepelnek azok a jogok, melyek alapján egy személy kapcsolatba kerülhet egy ingatlannal';
 
 
 --
--- Name: sv_point; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_point (
@@ -1042,17 +1216,17 @@ CREATE TABLE sv_point (
 );
 
 
-ALTER TABLE own.sv_point OWNER TO tdc;
+ALTER TABLE main.sv_point OWNER TO tdc;
 
 --
--- Name: TABLE sv_point; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_point; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_point IS 'Mért pont. Lehet 2 és 3 dimenziós is';
 
 
 --
--- Name: sv_point_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_point_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_point_nid_seq
@@ -1063,24 +1237,24 @@ CREATE SEQUENCE sv_point_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_point_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_point_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_point_nid_seq OWNED BY sv_point.nid;
 
 
 --
--- Name: sv_point_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: sv_point_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('sv_point_nid_seq', 2, true);
 
 
 --
--- Name: sv_survey_document; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_document; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_survey_document (
@@ -1090,17 +1264,17 @@ CREATE TABLE sv_survey_document (
 );
 
 
-ALTER TABLE own.sv_survey_document OWNER TO tdc;
+ALTER TABLE main.sv_survey_document OWNER TO tdc;
 
 --
--- Name: TABLE sv_survey_document; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_survey_document; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_survey_document IS 'Mérési jegyzőkönyv a felmért pontok számára';
 
 
 --
--- Name: sv_survey_document_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_survey_document_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_survey_document_nid_seq
@@ -1111,44 +1285,44 @@ CREATE SEQUENCE sv_survey_document_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_survey_document_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_survey_document_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_survey_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_survey_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_survey_document_nid_seq OWNED BY sv_survey_document.nid;
 
 
 --
--- Name: sv_survey_document_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: sv_survey_document_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('sv_survey_document_nid_seq', 5, true);
 
 
 --
--- Name: sv_survey_point; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_point; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_survey_point (
     nid bigint NOT NULL,
     description text,
-    name text
+    name text NOT NULL
 );
 
 
-ALTER TABLE own.sv_survey_point OWNER TO tdc;
+ALTER TABLE main.sv_survey_point OWNER TO tdc;
 
 --
--- Name: TABLE sv_survey_point; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_survey_point; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_survey_point IS 'Mérési pont azonosítása és leírása';
 
 
 --
--- Name: sv_survey_point_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_survey_point_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_survey_point_nid_seq
@@ -1159,17 +1333,17 @@ CREATE SEQUENCE sv_survey_point_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_survey_point_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_survey_point_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_survey_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_survey_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_survey_point_nid_seq OWNED BY sv_survey_point.nid;
 
 
 --
--- Name: sv_survey_point_nid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: sv_survey_point_nid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('sv_survey_point_nid_seq', 20, true);
@@ -1178,7 +1352,7 @@ SELECT pg_catalog.setval('sv_survey_point_nid_seq', 20, true);
 SET default_with_oids = true;
 
 --
--- Name: tp_face; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_face (
@@ -1190,17 +1364,17 @@ CREATE TABLE tp_face (
 );
 
 
-ALTER TABLE own.tp_face OWNER TO tdc;
+ALTER TABLE main.tp_face OWNER TO tdc;
 
 --
--- Name: TABLE tp_face; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_face; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_face IS 'Felület. Pontjait a tp_node elemei alkotják';
 
 
 --
--- Name: tp_face_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_face_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_face_gid_seq
@@ -1211,24 +1385,24 @@ CREATE SEQUENCE tp_face_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_face_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_face_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_face_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_face_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_face_gid_seq OWNED BY tp_face.gid;
 
 
 --
--- Name: tp_face_gid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: tp_face_gid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('tp_face_gid_seq', 2, true);
 
 
 --
--- Name: tp_node; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_node; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_node (
@@ -1238,17 +1412,17 @@ CREATE TABLE tp_node (
 );
 
 
-ALTER TABLE own.tp_node OWNER TO tdc;
+ALTER TABLE main.tp_node OWNER TO tdc;
 
 --
--- Name: TABLE tp_node; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_node; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_node IS 'Csomópont. Egy sv_survey_point-ot azonosít. Van geometriája, mely mindig a dátum szerinti aktuális sv_point adatait tartalmazza.';
 
 
 --
--- Name: tp_node_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_node_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_node_gid_seq
@@ -1259,45 +1433,45 @@ CREATE SEQUENCE tp_node_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_node_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_node_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_node_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_node_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_node_gid_seq OWNED BY tp_node.gid;
 
 
 --
--- Name: tp_node_gid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: tp_node_gid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('tp_node_gid_seq', 22, true);
 
 
 --
--- Name: tp_volume; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_volume (
     gid bigint NOT NULL,
-    facelist bigint[],
+    facelist bigint[] NOT NULL,
     note text,
     geom public.geometry(PolyhedralSurfaceZ)
 );
 
 
-ALTER TABLE own.tp_volume OWNER TO tdc;
+ALTER TABLE main.tp_volume OWNER TO tdc;
 
 --
--- Name: TABLE tp_volume; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_volume; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_volume IS '3D-s térfogati elem. tp_face-ek írják le';
 
 
 --
--- Name: tp_volume_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_volume_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_volume_gid_seq
@@ -1308,186 +1482,199 @@ CREATE SEQUENCE tp_volume_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_volume_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_volume_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_volume_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_volume_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_volume_gid_seq OWNED BY tp_volume.gid;
 
 
 --
--- Name: tp_volume_gid_seq; Type: SEQUENCE SET; Schema: own; Owner: tdc
+-- Name: tp_volume_gid_seq; Type: SEQUENCE SET; Schema: main; Owner: tdc
 --
 
 SELECT pg_catalog.setval('tp_volume_gid_seq', 1, true);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building ALTER COLUMN nid SET DEFAULT nextval('im_building_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit ALTER COLUMN nid SET DEFAULT nextval('im_building_individual_unit_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_levels ALTER COLUMN nid SET DEFAULT nextval('im_levels_nid_seq'::regclass);
+
+
+--
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit ALTER COLUMN nid SET DEFAULT nextval('im_underpass_individual_unit_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_legal_document ALTER COLUMN nid SET DEFAULT nextval('rt_legal_document_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point ALTER COLUMN nid SET DEFAULT nextval('sv_point_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_survey_document ALTER COLUMN nid SET DEFAULT nextval('sv_survey_document_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY sv_survey_point ALTER COLUMN nid SET DEFAULT nextval('sv_survey_point_nid_seq'::regclass);
-
-
---
--- Name: gid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: gid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_face ALTER COLUMN gid SET DEFAULT nextval('tp_face_gid_seq'::regclass);
 
 
 --
--- Name: gid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: gid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_volume ALTER COLUMN gid SET DEFAULT nextval('tp_volume_gid_seq'::regclass);
 
 
 --
--- Data for Name: im_building; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_building; Type: TABLE DATA; Schema: main; Owner: tdc
+--
+
+INSERT INTO im_building VALUES (1, NULL, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00);
+INSERT INTO im_building VALUES (2, NULL, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00);
+INSERT INTO im_building VALUES (3, NULL, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00);
+
+
+--
+-- Data for Name: im_building_individual_unit; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_building_individual_unit; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_building_individual_unit_level; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_building_individual_unit_level; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_building_level_unit; Type: TABLE DATA; Schema: main; Owner: tdc
+--
+
+INSERT INTO im_building_level_unit VALUES (1, 0, 149, NULL, 42);
+INSERT INTO im_building_level_unit VALUES (1, 1, 149, NULL, 41);
+INSERT INTO im_building_level_unit VALUES (3, 0, 58, NULL, 44);
+INSERT INTO im_building_level_unit VALUES (2, 0, 58, NULL, 43);
+
+
+--
+-- Data for Name: im_building_levels; Type: TABLE DATA; Schema: main; Owner: tdc
+--
+
+INSERT INTO im_building_levels VALUES (1, 0);
+INSERT INTO im_building_levels VALUES (1, 1);
+INSERT INTO im_building_levels VALUES (2, 0);
+INSERT INTO im_building_levels VALUES (3, 0);
+
+
+--
+-- Data for Name: im_building_shared_unit; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_building_levels; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_levels; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-
-
---
--- Data for Name: im_building_shared_unit; Type: TABLE DATA; Schema: own; Owner: tdc
---
-
-
-
---
--- Data for Name: im_levels; Type: TABLE DATA; Schema: own; Owner: tdc
---
-
-INSERT INTO im_levels VALUES ('Földszint');
-INSERT INTO im_levels VALUES ('Magasföldszint');
-INSERT INTO im_levels VALUES ('1. emelet');
-INSERT INTO im_levels VALUES ('2. emelet');
-INSERT INTO im_levels VALUES ('3. emelet');
-INSERT INTO im_levels VALUES ('4. emelet');
-INSERT INTO im_levels VALUES ('5. emelet');
-INSERT INTO im_levels VALUES ('6. emelet');
-INSERT INTO im_levels VALUES ('7. emelet');
-INSERT INTO im_levels VALUES ('8. emelet');
-INSERT INTO im_levels VALUES ('9. emelet');
-INSERT INTO im_levels VALUES ('10. emelet');
-INSERT INTO im_levels VALUES ('11. emelet');
-INSERT INTO im_levels VALUES ('12. emelet');
-INSERT INTO im_levels VALUES ('13. emelet');
-INSERT INTO im_levels VALUES ('14. emelet');
-INSERT INTO im_levels VALUES ('15. emelet');
+INSERT INTO im_levels VALUES ('Földszint', 0);
+INSERT INTO im_levels VALUES ('1. emelet', 1);
+INSERT INTO im_levels VALUES ('3. emelet', 3);
+INSERT INTO im_levels VALUES ('Magasföldszint', -1);
+INSERT INTO im_levels VALUES ('2. emelet', 2);
+INSERT INTO im_levels VALUES ('4. emelet', 4);
+INSERT INTO im_levels VALUES ('5. emelet', 5);
+INSERT INTO im_levels VALUES ('6. emelet', 6);
+INSERT INTO im_levels VALUES ('7. emelet', 7);
+INSERT INTO im_levels VALUES ('8. emelet', 8);
+INSERT INTO im_levels VALUES ('9. emelet', 9);
+INSERT INTO im_levels VALUES ('10. emelet', 10);
 
 
 --
--- Data for Name: im_parcel; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_parcel; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_parcel VALUES (1, 1264, 'Budapest', 213, NULL, 14, 14);
-INSERT INTO im_parcel VALUES (2, 1285, 'Budapest', 212, NULL, 13, 13);
-INSERT INTO im_parcel VALUES (3, 1325, 'Budapest', 211, 1, 11, 11);
+INSERT INTO im_parcel VALUES (1, 1264, 'Budapest', 213, NULL, 14, 14, 30.00);
+INSERT INTO im_parcel VALUES (2, 1285, 'Budapest', 212, NULL, 13, 13, 30.00);
+INSERT INTO im_parcel VALUES (3, 1325, 'Budapest', 211, 1, 11, 11, 30.00);
+INSERT INTO im_parcel VALUES (4, 1268, 'Budapest', 124, NULL, 2, 2, 30.00);
 
 
 --
--- Data for Name: im_settlement; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_settlement; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO im_settlement VALUES ('Budapest');
 
 
 --
--- Data for Name: im_shared_unit_level; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_shared_unit_level; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_underpass; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_underpass; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_underpass_block; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_underpass_block; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_underpass_individual_unit; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_underpass_individual_unit; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: im_underpass_shared_unit; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: im_underpass_shared_unit; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 
 
 --
--- Data for Name: pn_person; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: pn_person; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO pn_person VALUES (1, 'Magyar Állam');
@@ -1497,25 +1684,32 @@ INSERT INTO pn_person VALUES (4, 'Kiss Tibor');
 INSERT INTO pn_person VALUES (5, 'Nagy Tibor');
 INSERT INTO pn_person VALUES (6, 'Tóth Béla');
 INSERT INTO pn_person VALUES (7, 'Balogh János');
+INSERT INTO pn_person VALUES (8, 'Nagy János');
+INSERT INTO pn_person VALUES (9, 'Nagy Jánosné');
+INSERT INTO pn_person VALUES (10, 'Varga Katalin');
 
 
 --
--- Data for Name: rt_legal_document; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: rt_legal_document; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO rt_legal_document VALUES (1, 'Adás-vételi szerződés
-Kovács János mint vevő...
-...', '1980-03-04');
-INSERT INTO rt_legal_document VALUES (2, 'Adás-vételi szerződés
 
-Mely létrejött Nagy Tibor és Kiss Tibor mint vevő ...', '1979-10-23');
+Kovács János mint vevő...
+...', '1980-03-04', 1000000.00);
 INSERT INTO rt_legal_document VALUES (3, 'Adás-vételi szerződés
 
-Vevő: Tóth Béla, Balogh János', '1993-12-04');
+Vevő: Tóth Béla, Balogh János', '1993-12-04', 4300000.00);
+INSERT INTO rt_legal_document VALUES (2, 'Adás-vételi szerződés
+
+Mely létrejött Nagy Tibor és Kiss Tibor mint vevő ...', '1979-10-23', 1320000.00);
+INSERT INTO rt_legal_document VALUES (4, 'Adás-vételi szerződés
+
+Vevők: Nagy János, Nagy Jánosné, Varga Katalin', '2002-05-17', 8540000.00);
 
 
 --
--- Data for Name: rt_right; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: rt_right; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO rt_right VALUES (3, 1, 1, NULL, NULL, NULL, NULL, 1, 1, 1);
@@ -1523,10 +1717,13 @@ INSERT INTO rt_right VALUES (4, 2, 2, NULL, NULL, NULL, NULL, 1, 2, 1);
 INSERT INTO rt_right VALUES (5, 2, 2, NULL, NULL, NULL, NULL, 1, 2, 1);
 INSERT INTO rt_right VALUES (6, 3, 3, NULL, NULL, NULL, NULL, 1, 2, 1);
 INSERT INTO rt_right VALUES (7, 3, 3, NULL, NULL, NULL, NULL, 1, 2, 1);
+INSERT INTO rt_right VALUES (9, 4, 4, NULL, NULL, NULL, NULL, 2, 6, 1);
+INSERT INTO rt_right VALUES (10, 4, 4, NULL, NULL, NULL, NULL, 1, 6, 1);
+INSERT INTO rt_right VALUES (8, 4, 4, NULL, NULL, NULL, NULL, 3, 6, 1);
 
 
 --
--- Data for Name: rt_type; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: rt_type; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO rt_type VALUES ('Tulajdonjog', 1);
@@ -1534,7 +1731,7 @@ INSERT INTO rt_type VALUES ('Kezelői jog', 2);
 
 
 --
--- Data for Name: sv_point; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: sv_point; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO sv_point VALUES (57, 57, 1, 645534.66, 227926.73, 101.20, 3, 1);
@@ -1551,15 +1748,12 @@ INSERT INTO sv_point VALUES (71, 71, 2, 645420.21, 227961.70, 102.11, 3, 2);
 INSERT INTO sv_point VALUES (6, 6, 1, 645392.30, 227946.23, 102.00, 3, 1);
 INSERT INTO sv_point VALUES (7, 7, 1, 645361.32, 227927.08, 101.95, 3, 1);
 INSERT INTO sv_point VALUES (8, 8, 1, 645347.19, 227918.95, 101.75, 3, 1);
-INSERT INTO sv_point VALUES (72, 72, 2, 645427.16, 227950.39, 105.11, 3, 2);
 INSERT INTO sv_point VALUES (9, 9, 1, 645358.91, 227898.19, 101.27, 3, 1);
-INSERT INTO sv_point VALUES (73, 73, 2, 645436.79, 227956.07, 105.11, 3, 2);
 INSERT INTO sv_point VALUES (10, 10, 1, 645374.75, 227974.91, 102.61, 3, 1);
 INSERT INTO sv_point VALUES (11, 11, 1, 645344.79, 227956.34, 102.56, 3, 1);
 INSERT INTO sv_point VALUES (12, 12, 1, 645368.90, 227879.87, 101.20, 3, 1);
 INSERT INTO sv_point VALUES (13, 13, 1, 645363.86, 227889.01, 101.27, 3, 1);
 INSERT INTO sv_point VALUES (14, 14, 1, 645332.38, 227857.64, 101.03, 3, 1);
-INSERT INTO sv_point VALUES (74, 74, 2, 645429.72, 227967.50, 105.11, 3, 2);
 INSERT INTO sv_point VALUES (15, 15, 1, 645322.10, 227875.13, 101.20, 3, 1);
 INSERT INTO sv_point VALUES (16, 16, 1, 645309.53, 227896.26, 101.58, 3, 1);
 INSERT INTO sv_point VALUES (17, 17, 1, 645333.93, 227909.96, 101.68, 3, 1);
@@ -1580,7 +1774,6 @@ INSERT INTO sv_point VALUES (31, 31, 1, 645479.18, 228020.97, 102.46, 3, 1);
 INSERT INTO sv_point VALUES (32, 32, 1, 645394.01, 227985.02, 102.70, 3, 1);
 INSERT INTO sv_point VALUES (33, 33, 1, 645471.90, 228033.38, 102.83, 3, 1);
 INSERT INTO sv_point VALUES (34, 34, 1, 645427.05, 227889.75, 101.23, 3, 1);
-INSERT INTO sv_point VALUES (75, 75, 2, 645420.21, 227961.70, 105.11, 3, 2);
 INSERT INTO sv_point VALUES (35, 35, 1, 645435.42, 227876.15, 101.07, 3, 1);
 INSERT INTO sv_point VALUES (36, 36, 1, 645424.50, 227869.94, 100.99, 3, 1);
 INSERT INTO sv_point VALUES (37, 37, 1, 645416.80, 227883.53, 101.20, 3, 1);
@@ -1612,10 +1805,34 @@ INSERT INTO sv_point VALUES (64, 64, 1, 645552.02, 227900.27, 101.07, 3, 1);
 INSERT INTO sv_point VALUES (65, 65, 1, 645485.60, 227836.66, 100.82, 3, 1);
 INSERT INTO sv_point VALUES (66, 66, 1, 645561.63, 227882.87, 100.02, 3, 1);
 INSERT INTO sv_point VALUES (67, 67, 1, 645521.34, 227947.30, 101.38, 3, 1);
+INSERT INTO sv_point VALUES (72, 72, 2, 645427.16, 227950.39, 108.11, 3, 2);
+INSERT INTO sv_point VALUES (75, 75, 2, 645420.21, 227961.70, 108.11, 3, 2);
+INSERT INTO sv_point VALUES (74, 74, 2, 645429.72, 227967.50, 108.11, 3, 2);
+INSERT INTO sv_point VALUES (73, 73, 2, 645436.79, 227956.07, 108.11, 3, 2);
+INSERT INTO sv_point VALUES (77, 77, 2, 645436.79, 227956.07, 105.11, 3, 2);
+INSERT INTO sv_point VALUES (78, 78, 2, 645429.72, 227967.50, 105.11, 3, 2);
+INSERT INTO sv_point VALUES (79, 79, 2, 645420.21, 227961.70, 105.11, 3, 2);
+INSERT INTO sv_point VALUES (76, 76, 2, 645427.16, 227950.39, 105.11, 3, 2);
+INSERT INTO sv_point VALUES (80, 80, 2, 645388.63, 227938.68, 101.90, 3, 2);
+INSERT INTO sv_point VALUES (81, 81, 2, 645379.97, 227933.54, 101.90, 3, 2);
+INSERT INTO sv_point VALUES (83, 83, 2, 645396.66, 227926.16, 101.85, 3, 2);
+INSERT INTO sv_point VALUES (84, 84, 2, 645359.01, 227921.36, 101.30, 3, 2);
+INSERT INTO sv_point VALUES (85, 85, 2, 645366.36, 227925.28, 101.50, 3, 2);
+INSERT INTO sv_point VALUES (86, 86, 2, 645369.69, 227919.22, 101.50, 3, 2);
+INSERT INTO sv_point VALUES (87, 87, 2, 645362.52, 227915.10, 101.30, 3, 2);
+INSERT INTO sv_point VALUES (88, 88, 2, 645388.63, 227938.68, 104.80, 3, 2);
+INSERT INTO sv_point VALUES (89, 89, 2, 645379.97, 227933.54, 104.80, 3, 2);
+INSERT INTO sv_point VALUES (90, 90, 2, 645387.78, 227920.91, 104.80, 3, 2);
+INSERT INTO sv_point VALUES (82, 82, 2, 645387.78, 227920.91, 101.80, 3, 2);
+INSERT INTO sv_point VALUES (91, 91, 2, 645396.66, 227926.16, 104.80, 3, 2);
+INSERT INTO sv_point VALUES (92, 92, 2, 645359.01, 227921.36, 104.30, 3, 2);
+INSERT INTO sv_point VALUES (93, 93, 2, 645366.36, 227925.28, 104.30, 3, 2);
+INSERT INTO sv_point VALUES (94, 94, 2, 645369.69, 227919.22, 104.30, 3, 2);
+INSERT INTO sv_point VALUES (95, 95, 2, 645362.52, 227915.10, 104.30, 3, 2);
 
 
 --
--- Data for Name: sv_survey_document; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: sv_survey_document; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO sv_survey_document VALUES (1, '2012-10-23', 'Mérési jegyzőkönyv
@@ -1627,7 +1844,7 @@ INSERT INTO sv_survey_document VALUES (2, '2012-10-23', 'Mérési jegyzőkönyv
 
 
 --
--- Data for Name: sv_survey_point; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: sv_survey_point; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO sv_survey_point VALUES (1, '123 hrsz-ú telek térre néző sarokpontja', '1');
@@ -1697,18 +1914,38 @@ INSERT INTO sv_survey_point VALUES (64, '471, 472/2 hrsz-ú ingatlanok közös u
 INSERT INTO sv_survey_point VALUES (65, '471 hrsz-ú ingatlan tér felöli sarokpontja', '65');
 INSERT INTO sv_survey_point VALUES (66, '471 hrsz-ú ingatlan tér felöli sarokpontja', '66');
 INSERT INTO sv_survey_point VALUES (67, '474/2 hrsz-ú ingatlan térre néző sarokpontja', '67');
-INSERT INTO sv_survey_point VALUES (68, '123 hrsz-ú épület D-i alsó sarokpontja', '68');
-INSERT INTO sv_survey_point VALUES (69, '123 hrsz-ú épület K-i alsó sarokpontja', '69');
-INSERT INTO sv_survey_point VALUES (70, '123 hrsz-ú épület É-i alsó sarokpontja', '70');
-INSERT INTO sv_survey_point VALUES (71, '123 hrsz-ú épület NY-i alsó sarokpontja', '71');
-INSERT INTO sv_survey_point VALUES (72, '123 hrsz-ú épület D-i felső sarokpontja', '72');
-INSERT INTO sv_survey_point VALUES (73, '123 hrsz-ú épület K-i felső sarokpontja', '73');
-INSERT INTO sv_survey_point VALUES (74, '123 hrsz-ú épület É-i felső sarokpontja', '74');
-INSERT INTO sv_survey_point VALUES (75, '123 hrsz-ú épület NY-i felső sarokpontja', '75');
+INSERT INTO sv_survey_point VALUES (75, '211/1 hrsz-ú épület NY-i felső sarokpontja', '75');
+INSERT INTO sv_survey_point VALUES (74, '211/1 hrsz-ú épület É-i felső sarokpontja', '74');
+INSERT INTO sv_survey_point VALUES (73, '211/1 hrsz-ú épület K-i felső sarokpontja', '73');
+INSERT INTO sv_survey_point VALUES (72, '211/1 hrsz-ú épület D-i felső sarokpontja', '72');
+INSERT INTO sv_survey_point VALUES (71, '211/1 hrsz-ú épület NY-i alsó sarokpontja', '71');
+INSERT INTO sv_survey_point VALUES (70, '211/1 hrsz-ú épület É-i alsó sarokpontja', '70');
+INSERT INTO sv_survey_point VALUES (69, '211/1 hrsz-ú épület K-i alsó sarokpontja', '69');
+INSERT INTO sv_survey_point VALUES (68, '211/1 hrsz-ú épület D-i alsó sarokpontja', '68');
+INSERT INTO sv_survey_point VALUES (76, '211/1 hrsz-ú épület D-i emeleti sarokpontja', '76');
+INSERT INTO sv_survey_point VALUES (77, '211/1 hrsz-ú épület K-i emeleti sarokpontja', '77');
+INSERT INTO sv_survey_point VALUES (78, '211/1 hrsz-ú épület É-i emeleti sarokpontja', '78');
+INSERT INTO sv_survey_point VALUES (79, '211/1 hrsz-ú épület NY-i emeleti sarokpontja', '79');
+INSERT INTO sv_survey_point VALUES (80, '124 hrsz-ú épület É-i sarokpontja', '80');
+INSERT INTO sv_survey_point VALUES (81, '124 hrsz-ú épület NY-i sarokpontja', '81');
+INSERT INTO sv_survey_point VALUES (82, '124 hrsz-ú épület D-i sarokpontja', '82');
+INSERT INTO sv_survey_point VALUES (83, '124 hrsz-ú épület K-i sarokpontja', '83');
+INSERT INTO sv_survey_point VALUES (85, '124 hrsz-ú Belső épület É-i sarokpontja', '85');
+INSERT INTO sv_survey_point VALUES (84, '124 hrsz-ú Belső épület NY-i sarokpontja', '84');
+INSERT INTO sv_survey_point VALUES (87, '124 hrsz-ú Belső épület D-i sarokpontja', '87');
+INSERT INTO sv_survey_point VALUES (86, '124 hrsz-ú Belső épület K-i sarokpontja', '86');
+INSERT INTO sv_survey_point VALUES (88, '124 hrsz-ú épület É-i tető sarokpontja', '88');
+INSERT INTO sv_survey_point VALUES (89, '124 hrsz-ú épület NY-i tető sarokpontja', '89');
+INSERT INTO sv_survey_point VALUES (90, '124 hrsz-ú épület D-i tető sarokpontja', '90');
+INSERT INTO sv_survey_point VALUES (91, '124 hrsz-ú épület K-i tető sarokpontja', '91');
+INSERT INTO sv_survey_point VALUES (92, '124 hrsz-ú Beslő épület NY-i tető sarokpontja', '92');
+INSERT INTO sv_survey_point VALUES (93, '124 hrsz-ú Beslő épület É-i tető sarokpontja', '93');
+INSERT INTO sv_survey_point VALUES (94, '124 hrsz-ú Beslő épület K-i tető sarokpontja', '94');
+INSERT INTO sv_survey_point VALUES (95, '124 hrsz-ú Beslő épület D-i tető sarokpontja', '95');
 
 
 --
--- Data for Name: tp_face; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: tp_face; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO tp_face VALUES (26, '{60,56,55,58,59}', '0103000080010000000600000014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940EC51B89EA4B22341CDCCCCCC46D10B41AE47E17A143E59408FC2F528D6B2234185EB51B8C2D10B4152B81E85EB415940F6285C0FFEB2234185EB51B820D20B416666666666465940A4703D0A13B323413333333395D10B41C3F5285C8F42594014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940', NULL, 'VETÜLET- PARCEL - 473/1');
@@ -1735,31 +1972,57 @@ INSERT INTO tp_face VALUES (5, '{14,15,9,13,12}', '01030000800100000006000000295
 INSERT INTO tp_face VALUES (4, '{12,13,9,4,3,2}', '01030000800100000007000000CDCCCCCCF1B123415C8FC2F53ED10B41CDCCCCCCCC4C594085EB51B8E7B1234148E17A1488D10B41E17A14AE475159401F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940666666E60CB2234148E17A1442D20B41AE47E17A145E5940713D0AD718B223415C8FC2F5F6D10B4148E17A14AE5759408FC2F52823B223415C8FC2F5B6D10B413333333333535940CDCCCCCCF1B123415C8FC2F53ED10B41CDCCCCCCCC4C5940', NULL, 'VETÜLET- PARCEL - 122');
 INSERT INTO tp_face VALUES (3, '{7,11,10,6}', '010300008001000000050000003D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C594048E17A94C1B1234185EB51B8A2D30B41A4703D0AD7A3594000000080FDB123417B14AE4737D40B41D7A3703D0AA759409A99999920B22341713D0AD751D30B4100000000008059403D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C5940', NULL, 'VETÜLET- PARCEL - 126/1');
 INSERT INTO tp_face VALUES (1, '{1,2,3,4,5}', '01030000800100000006000000AE47E1FA4FB22341F6285C8F1ED20B4166666666665659408FC2F52823B223415C8FC2F5B6D10B413333333333535940713D0AD718B223415C8FC2F5F6D10B4148E17A14AE575940666666E60CB2234148E17A1442D20B41AE47E17A145E5940295C8F423AB2234152B81E85ADD20B41E17A14AE47615940AE47E1FA4FB22341F6285C8F1ED20B416666666666565940', NULL, 'VETÜLET- PARCEL - 123');
-INSERT INTO tp_face VALUES (33, '{71,26,27,70}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A875940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940', NULL, 'MODEL- PARCEL - É-i negyed');
-INSERT INTO tp_face VALUES (32, '{29,69,70,27}', '0103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A594066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940', NULL, 'MODEL- PARCEL - NY-i negyed');
+INSERT INTO tp_face VALUES (42, '{75,74,78,79}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Emelet É-i fala-211/1');
+INSERT INTO tp_face VALUES (41, '{73,77,78,74}', '0103000080010000000500000048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Emelet K-i fala-211/1');
+INSERT INTO tp_face VALUES (31, '{21,29,69,68}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594066666666B0B223415C8FC2F5DCD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - D-i negyed');
 INSERT INTO tp_face VALUES (29, '{55,54,67,57,58}', '010300008001000000060000008FC2F528D6B2234185EB51B8C2D10B4152B81E85EB415940CDCCCCCCBFB22341AE47E17A60D20B41EC51B81E854B5940E17A14AE22B32341666666665AD30B41B81E85EB515859401F85EB513DB32341713D0AD7B5D20B41CDCCCCCCCC4C5940F6285C0FFEB2234185EB51B820D20B4166666666664659408FC2F528D6B2234185EB51B8C2D10B4152B81E85EB415940', NULL, 'VETÜLET- PARCEL - 474/2');
 INSERT INTO tp_face VALUES (28, '{56,53,54,55}', '01030000800100000005000000EC51B89EA4B22341CDCCCCCC46D10B41AE47E17A143E59400AD7A3F08BB2234152B81E85E9D10B41B81E85EB51485940CDCCCCCCBFB22341AE47E17A60D20B41EC51B81E854B59408FC2F528D6B2234185EB51B8C2D10B4152B81E85EB415940EC51B89EA4B22341CDCCCCCC46D10B41AE47E17A143E5940', NULL, 'VETÜLET- PARCEL - 474/1');
 INSERT INTO tp_face VALUES (27, '{58,57,61,59}', '01030000800100000005000000F6285C0FFEB2234185EB51B820D20B4166666666664659401F85EB513DB32341713D0AD7B5D20B41CDCCCCCCCC4C5940EC51B89E50B32341333333333BD20B416666666666465940A4703D0A13B323413333333395D10B41C3F5285C8F425940F6285C0FFEB2234185EB51B820D20B416666666666465940', NULL, 'VETÜLET- PARCEL - 473/2');
 INSERT INTO tp_face VALUES (18, '{44,38,51,36,35,42,52,43}', '01030000800100000009000000B81E856B33B223411F85EB51DACF0B4148E17A14AE375940C3F5285C22B223410AD7A3704DD00B41CDCCCCCCCC3C5940666666E64FB2234152B81E85C3D00B411F85EB51B83E59400000000061B2234152B81E85EFD00B418FC2F5285C3F5940713D0AD776B223413333333321D10B4114AE47E17A44594052B81E0589B223418FC2F528AAD00B418FC2F5285C3F5940E17A14AE61B22341295C8FC249D00B41295C8FC2F5385940D7A370BD43B22341D7A3703D00D00B41B81E85EB51385940B81E856B33B223411F85EB51DACF0B4148E17A14AE375940', NULL, 'VETÜLET- PARCEL - 352/2');
 INSERT INTO tp_face VALUES (2, '{9,4,5,6,7,8}', '010300008001000000070000001F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940666666E60CB2234148E17A1442D20B41AE47E17A145E5940295C8F423AB2234152B81E85ADD20B41E17A14AE476159409A99999920B22341713D0AD751D30B4100000000008059403D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C594014AE4761C6B123419A99999977D20B4100000000007059401F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940', NULL, 'VETÜLET- PARCEL - 124');
-INSERT INTO tp_face VALUES (34, '{68,71,70,69}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - Ház alapterülete');
-INSERT INTO tp_face VALUES (31, '{21,68,69,29,22}', '01030000800100000006000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594066666666B0B223415C8FC2F5DCD30B41F6285C8FC26559400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - D-i negyed');
+INSERT INTO tp_face VALUES (32, '{29,27,70,69}', '0103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940', NULL, 'MODEL- PARCEL - NY-i negyed');
+INSERT INTO tp_face VALUES (33, '{71,70,27,26}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A875940', NULL, 'MODEL- PARCEL - É-i negyed');
+INSERT INTO tp_face VALUES (39, '{75,72,73,74}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Ház felső lapja-211/1');
 INSERT INTO tp_face VALUES (30, '{21,68,71,26}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A875940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - K-i negyed');
-INSERT INTO tp_face VALUES (35, '{68,72,73,69}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940', NULL, 'MODEL- BUILDING - Ház D-i fala');
-INSERT INTO tp_face VALUES (36, '{69,73,74,70}', '0103000080010000000500000048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC2655940', NULL, 'MODEL- BUILDING - Ház K-i fala');
-INSERT INTO tp_face VALUES (37, '{74,75,71,70}', '010300008001000000050000000AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Ház É-i fala');
-INSERT INTO tp_face VALUES (38, '{75,72,68,71}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Ház NY-i fala');
-INSERT INTO tp_face VALUES (39, '{72,75,74,73}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Ház felső lapja');
+INSERT INTO tp_face VALUES (37, '{75,74,70,71}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Ház É-i fala-211/1');
+INSERT INTO tp_face VALUES (38, '{72,75,71,68}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Ház NY-i fala-211/1');
+INSERT INTO tp_face VALUES (36, '{69,70,74,73}', '0103000080010000000500000048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41F6285C8FC2655940', NULL, 'MODEL- BUILDING - Ház K-i fala-211/1');
+INSERT INTO tp_face VALUES (35, '{72,68,69,73}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Ház D-i fala-211/1');
+INSERT INTO tp_face VALUES (44, '{72,73,74,75}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Emelet teteje-211/1');
+INSERT INTO tp_face VALUES (47, '{77,69,70,78}', '0103000080010000000500000048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - földszint K-i fala-211/1');
+INSERT INTO tp_face VALUES (48, '{79,78,70,71}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint É-i fala-211/1');
+INSERT INTO tp_face VALUES (34, '{68,71,70,69}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - Ház alja');
+INSERT INTO tp_face VALUES (51, '{71,68,69,70}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940', NULL, 'MODELL - PARCELLA - 211/1');
+INSERT INTO tp_face VALUES (61, '{95,92,84,87}', '01030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház K-i fala-124');
+INSERT INTO tp_face VALUES (43, '{72,75,79,76}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40', NULL, 'MODEL- BUILDING - Emelet NY-i fala-211/1');
+INSERT INTO tp_face VALUES (40, '{76,77,73,72}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Emelet D-i fala-211/1');
+INSERT INTO tp_face VALUES (45, '{76,79,78,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Emelet alja-211/1');
+INSERT INTO tp_face VALUES (46, '{76,68,69,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint D-i fala-211/1');
+INSERT INTO tp_face VALUES (49, '{76,79,71,68}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint NY-i fala-211/1');
+INSERT INTO tp_face VALUES (50, '{79,76,77,78}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint teteje-211/1');
+INSERT INTO tp_face VALUES (53, '{88,91,83,80}', '01030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40', NULL, 'MODEL- BUILDING - Ház K-i fala-124');
+INSERT INTO tp_face VALUES (55, '{89,88,80,81}', '010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház É-i fala-124');
+INSERT INTO tp_face VALUES (56, '{88,89,90,91}', '01030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40', NULL, 'MODEL- BUILDING - Ház teteje-124');
+INSERT INTO tp_face VALUES (58, '{86,94,95,87}', '0103000080010000000500000014AE4761F3B12341295C8FC279D20B41000000000060594014AE4761F3B12341295C8FC279D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B41333333333353594014AE4761F3B12341295C8FC279D20B410000000000605940', NULL, 'MODEL- BUILDING - Belső Ház D-i fala-124');
+INSERT INTO tp_face VALUES (59, '{85,93,94,86}', '0103000080010000000500000085EB51B8ECB12341D7A3703DAAD20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4014AE4761F3B12341295C8FC279D20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B410000000000605940', NULL, 'MODEL- BUILDING - Belső Ház K-i fala-124');
+INSERT INTO tp_face VALUES (60, '{92,93,85,84}', '0103000080010000000500000052B81E05DEB1234114AE47E18AD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B41000000000060594052B81E05DEB1234114AE47E18AD20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház É-i fala-124');
+INSERT INTO tp_face VALUES (63, '{84,85,86,87}', '0103000080010000000500000052B81E05DEB1234114AE47E18AD20B41333333333353594085EB51B8ECB12341D7A3703DAAD20B41000000000060594014AE4761F3B12341295C8FC279D20B410000000000605940A4703D0AE5B12341CDCCCCCC58D20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333535940', NULL, 'MODEL- BUILDING - Belső Ház alső födém-124');
+INSERT INTO tp_face VALUES (62, '{95,94,93,92}', '01030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház tető fala-124');
+INSERT INTO tp_face VALUES (52, '{90,82,83,91}', '01030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A40F6285C8F17B223417B14AE4787D20B4133333333337359401F85EB5129B223417B14AE47B1D20B4166666666667659401F85EB5129B223417B14AE47B1D20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház D-i fala-124');
+INSERT INTO tp_face VALUES (54, '{90,89,81,82}', '01030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A400AD7A3F007B223411F85EB51ECD20B419A99999999795940F6285C8F17B223417B14AE4787D20B413333333333735940F6285C8F17B223417B14AE4787D20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház É-i fala-124');
+INSERT INTO tp_face VALUES (57, '{82,81,80,83}', '01030000800100000005000000F6285C8F17B223417B14AE4787D20B4133333333337359400AD7A3F007B223411F85EB51ECD20B419A99999999795940295C8F4219B223410AD7A37015D30B419A999999997959401F85EB5129B223417B14AE47B1D20B416666666666765940F6285C8F17B223417B14AE4787D20B413333333333735940', NULL, 'MODEL- BUILDING - Ház alsó födém-124');
 
 
 --
--- Data for Name: tp_node; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: tp_node; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO tp_node VALUES (65, '010100008033333333DBB223417B14AE47E5CF0B4114AE47E17A345940', NULL);
 INSERT INTO tp_node VALUES (66, '0101000080295C8F4273B323415C8FC2F556D10B41E17A14AE47015940', NULL);
 INSERT INTO tp_node VALUES (67, '0101000080E17A14AE22B32341666666665AD30B41B81E85EB51585940', NULL);
+INSERT INTO tp_node VALUES (81, '01010000800AD7A3F007B223411F85EB51ECD20B419A99999999795940', NULL);
 INSERT INTO tp_node VALUES (57, '01010000801F85EB513DB32341713D0AD7B5D20B41CDCCCCCCCC4C5940', NULL);
+INSERT INTO tp_node VALUES (75, '0101000080B81E856B58B223419A999999CDD30B41D7A3703D0A075B40', 'BUILDING - 211/1');
 INSERT INTO tp_node VALUES (54, '0101000080CDCCCCCCBFB22341AE47E17A60D20B41EC51B81E854B5940', NULL);
 INSERT INTO tp_node VALUES (1, '0101000080AE47E1FA4FB22341F6285C8F1ED20B416666666666565940', NULL);
 INSERT INTO tp_node VALUES (2, '01010000808FC2F52823B223415C8FC2F5B6D10B413333333333535940', NULL);
@@ -1823,27 +2086,59 @@ INSERT INTO tp_node VALUES (61, '0101000080EC51B89E50B32341333333333BD20B4166666
 INSERT INTO tp_node VALUES (62, '0101000080713D0AD71FB323416666666646D10B41713D0AD7A3405940', NULL);
 INSERT INTO tp_node VALUES (63, '0101000080CDCCCCCCC5B22341E17A14AE71D00B41B81E85EB51385940', NULL);
 INSERT INTO tp_node VALUES (64, '0101000080A4703D0A60B323418FC2F528E2D10B4114AE47E17A445940', NULL);
-INSERT INTO tp_node VALUES (75, '0101000080B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', 'BUILDING - 211/1');
-INSERT INTO tp_node VALUES (74, '01010000800AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40', 'BUILDING - 211/1');
-INSERT INTO tp_node VALUES (73, '010100008048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40', 'BUILDING - 211/1');
-INSERT INTO tp_node VALUES (72, '01010000801F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (83, '01010000801F85EB5129B223417B14AE47B1D20B416666666666765940', NULL);
+INSERT INTO tp_node VALUES (84, '010100008052B81E05DEB1234114AE47E18AD20B413333333333535940', NULL);
+INSERT INTO tp_node VALUES (85, '010100008085EB51B8ECB12341D7A3703DAAD20B410000000000605940', NULL);
 INSERT INTO tp_node VALUES (71, '0101000080B81E856B58B223419A999999CDD30B41D7A3703D0A875940', 'BUILDING - 211/1');
 INSERT INTO tp_node VALUES (70, '01010000800AD7A3706BB2234100000000FCD30B417B14AE47E18A5940', 'BUILDING - 211/1');
 INSERT INTO tp_node VALUES (69, '010100008048E17A9479B22341F6285C8FA0D30B41F6285C8FC2655940', 'BUILDING - 211/1');
 INSERT INTO tp_node VALUES (68, '01010000801F85EB5166B22341EC51B81E73D30B4152B81E85EB615940', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (74, '01010000800AD7A3706BB2234100000000FCD30B41D7A3703D0A075B40', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (72, '01010000801F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (86, '010100008014AE4761F3B12341295C8FC279D20B410000000000605940', NULL);
+INSERT INTO tp_node VALUES (73, '010100008048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B40', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (77, '010100008048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40', NULL);
+INSERT INTO tp_node VALUES (78, '01010000800AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40', NULL);
+INSERT INTO tp_node VALUES (79, '0101000080B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL);
+INSERT INTO tp_node VALUES (87, '0101000080A4703D0AE5B12341CDCCCCCC58D20B413333333333535940', NULL);
+INSERT INTO tp_node VALUES (76, '01010000801F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL);
+INSERT INTO tp_node VALUES (80, '0101000080295C8F4219B223410AD7A37015D30B419A99999999795940', NULL);
+INSERT INTO tp_node VALUES (88, '0101000080295C8F4219B223410AD7A37015D30B413333333333335A40', NULL);
+INSERT INTO tp_node VALUES (89, '01010000800AD7A3F007B223411F85EB51ECD20B413333333333335A40', NULL);
+INSERT INTO tp_node VALUES (91, '01010000801F85EB5129B223417B14AE47B1D20B413333333333335A40', NULL);
+INSERT INTO tp_node VALUES (92, '010100008052B81E05DEB1234114AE47E18AD20B413333333333135A40', NULL);
+INSERT INTO tp_node VALUES (94, '010100008014AE4761F3B12341295C8FC279D20B413333333333135A40', NULL);
+INSERT INTO tp_node VALUES (90, '0101000080F6285C8F17B223417B14AE4787D20B413333333333335A40', NULL);
+INSERT INTO tp_node VALUES (93, '010100008085EB51B8ECB12341D7A3703DAAD20B413333333333135A40', NULL);
+INSERT INTO tp_node VALUES (95, '0101000080A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL);
+INSERT INTO tp_node VALUES (82, '0101000080F6285C8F17B223417B14AE4787D20B413333333333735940', NULL);
 
 
 --
--- Data for Name: tp_volume; Type: TABLE DATA; Schema: own; Owner: tdc
+-- Data for Name: tp_volume; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
 INSERT INTO tp_volume VALUES (14, '{14}', 'PARCELL - 213 hrsz', '010F0000800100000001030000800100000005000000F6285C8F32B22341EC51B81E2FD40B4185EB51B81E95594052B81E0524B223418FC2F52888D40B41CDCCCCCCCCAC5940CDCCCCCCBFB22341A4703D0A0BD60B4185EB51B81EB55940C3F5285CCEB22341295C8FC2A7D50B413D0AD7A3709D5940F6285C8F32B22341EC51B81E2FD40B4185EB51B81E955940');
 INSERT INTO tp_volume VALUES (13, '{13}', 'PARCELL - 212 hrsz', '010F0000800100000001030000800100000006000000295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940F6285C8F32B22341EC51B81E2FD40B4185EB51B81E955940C3F5285CCEB22341295C8FC2A7D50B413D0AD7A3709D5940EC51B89EDEB223417B14AE474BD50B418FC2F5285C8F5940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940');
-INSERT INTO tp_volume VALUES (11, '{35,38,37,36,39}', 'PARCELL - 211/1 hrsz', '010F00008005000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A475A40010300008001000000050000000AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400103000080010000000500000048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC2655940010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40');
+INSERT INTO tp_volume VALUES (11, '{30,31,32,33,51}', 'PARCELL - 211/1 hrsz', '010F0000800500000001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A875940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594066666666B0B223415C8FC2F5DCD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594066666666B0B223415C8FC2F5DCD30B41F6285C8FC265594001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940295C8FC241B22341CDCCCCCCCED30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A87594001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940');
+INSERT INTO tp_volume VALUES (40, '{35,36,37,38,39}', 'BUILDING - 211/1 hrsz-on', '010F00008005000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B400103000080010000000500000048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A075B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40');
+INSERT INTO tp_volume VALUES (41, '{40,41,42,43,44,45}', 'BUILDING - EMELET - 211/1 hrsz', '010F00008006000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A400103000080010000000500000048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A075B400AD7A3706BB2234100000000FCD30B41D7A3703D0A075B40B81E856B58B223419A999999CDD30B41D7A3703D0A075B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A075B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40');
+INSERT INTO tp_volume VALUES (42, '{46,47,48,49,50,34}', 'BUILDING - FÖLDSZINT - 211/1 hrsz', '010F00008006000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B4152B81E85EB61594048E17A9479B22341F6285C8FA0D30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A400103000080010000000500000048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559400AD7A3706BB2234100000000FCD30B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B417B14AE47E18A5940B81E856B58B223419A999999CDD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A475A40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A8759401F85EB5166B22341EC51B81E73D30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40010300008001000000050000001F85EB5166B22341EC51B81E73D30B4152B81E85EB615940B81E856B58B223419A999999CDD30B41D7A3703D0A8759400AD7A3706BB2234100000000FCD30B417B14AE47E18A594048E17A9479B22341F6285C8FA0D30B41F6285C8FC26559401F85EB5166B22341EC51B81E73D30B4152B81E85EB615940');
+INSERT INTO tp_volume VALUES (2, '{2}', 'PARCELL - 124 hrsz', '010F00008001000000010300008001000000070000001F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940666666E60CB2234148E17A1442D20B41AE47E17A145E5940295C8F423AB2234152B81E85ADD20B41E17A14AE476159409A99999920B22341713D0AD751D30B4100000000008059403D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C594014AE4761C6B123419A99999977D20B4100000000007059401F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940');
+INSERT INTO tp_volume VALUES (44, '{58,59,60,61,62,63}', 'BUILDING - 124 hrsz-on Beső épület', '010F000080060000000103000080010000000500000014AE4761F3B12341295C8FC279D20B41000000000060594014AE4761F3B12341295C8FC279D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B41333333333353594014AE4761F3B12341295C8FC279D20B4100000000006059400103000080010000000500000085EB51B8ECB12341D7A3703DAAD20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4014AE4761F3B12341295C8FC279D20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B4100000000006059400103000080010000000500000052B81E05DEB1234114AE47E18AD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B41000000000060594052B81E05DEB1234114AE47E18AD20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A400103000080010000000500000052B81E05DEB1234114AE47E18AD20B41333333333353594085EB51B8ECB12341D7A3703DAAD20B41000000000060594014AE4761F3B12341295C8FC279D20B410000000000605940A4703D0AE5B12341CDCCCCCC58D20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333535940');
+INSERT INTO tp_volume VALUES (43, '{52,53,55,54,56,57}', 'BUILDING - 124 hrsz-on Külső épület', '010F0000800600000001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A40F6285C8F17B223417B14AE4787D20B4133333333337359401F85EB5129B223417B14AE47B1D20B4166666666667659401F85EB5129B223417B14AE47B1D20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A400AD7A3F007B223411F85EB51ECD20B419A99999999795940F6285C8F17B223417B14AE4787D20B413333333333735940F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B4133333333337359400AD7A3F007B223411F85EB51ECD20B419A99999999795940295C8F4219B223410AD7A37015D30B419A999999997959401F85EB5129B223417B14AE47B1D20B416666666666765940F6285C8F17B223417B14AE4787D20B413333333333735940');
 
 
 --
--- Name: im_building_individual_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: Tableim_building_individual_unit_level_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT "Tableim_building_individual_unit_level_pkey" PRIMARY KEY (im_building, hrsz_unit, im_levels);
+
+
+--
+-- Name: im_building_individual_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -1851,7 +2146,7 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_individual_unit_unique_im_building_hrsz_unit; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit_unique_im_building_hrsz_unit; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -1859,15 +2154,23 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_levels_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_level_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_pkey PRIMARY KEY (im_building, im_levels);
+
+
+--
+-- Name: im_building_levels_fkey_im_building_im_levels; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_levels
-    ADD CONSTRAINT im_building_levels_pkey PRIMARY KEY (im_building, im_levels);
+    ADD CONSTRAINT im_building_levels_fkey_im_building_im_levels PRIMARY KEY (im_building, im_levels);
 
 
 --
--- Name: im_building_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1875,7 +2178,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_shared_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_shared_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_shared_unit
@@ -1883,7 +2186,7 @@ ALTER TABLE ONLY im_building_shared_unit
 
 
 --
--- Name: im_building_unique_im_settlement_hrsz_main_hrsz_fraction; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_im_settlement_hrsz_main_hrsz_fraction; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1891,7 +2194,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1899,7 +2202,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_unique_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1907,23 +2210,23 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_individual_unit_level_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
---
-
-ALTER TABLE ONLY im_building_individual_unit_level
-    ADD CONSTRAINT im_individual_unit_level_pkey PRIMARY KEY (im_building, hrsz_unit, im_levels);
-
-
---
--- Name: im_levels_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_levels
-    ADD CONSTRAINT im_levels_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT im_levels_pkey PRIMARY KEY (nid);
 
 
 --
--- Name: im_parcel_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_unique_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_levels
+    ADD CONSTRAINT im_levels_unique_name UNIQUE (name);
+
+
+--
+-- Name: im_parcel_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1931,15 +2234,15 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
-    ADD CONSTRAINT im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial UNIQUE (im_settlement, hrsz_main, hrsz_partial);
+    ADD CONSTRAINT im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial UNIQUE (im_settlement, hrsz_main, hrsz_fraction);
 
 
 --
--- Name: im_parcel_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1947,7 +2250,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_parcel_unique_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1955,7 +2258,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_settlement_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_settlement_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_settlement
@@ -1963,7 +2266,7 @@ ALTER TABLE ONLY im_settlement
 
 
 --
--- Name: im_shared_unit_level_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_shared_unit_level_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_shared_unit_level
@@ -1971,7 +2274,7 @@ ALTER TABLE ONLY im_shared_unit_level
 
 
 --
--- Name: im_underpass_individual_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -1979,7 +2282,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_individual_unit_unique_im_underpass_unit_hrsz_unit; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit_unique_im_underpass_unit_hrsz_unit; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -1987,7 +2290,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1995,7 +2298,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_shared_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -2003,7 +2306,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_shared_unit_unique_im_underpass_unit_name; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit_unique_im_underpass_unit_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -2011,7 +2314,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_unigue_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unigue_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -2019,7 +2322,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unique_hrsz_settlement_hrsz_main_hrsz_parcial; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unique_hrsz_settlement_hrsz_main_hrsz_parcial; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -2027,7 +2330,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -2035,7 +2338,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -2043,7 +2346,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: im_underpass_unit_unique_im_underpass_hrsz_eoi; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unit_unique_im_underpass_hrsz_eoi; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -2051,7 +2354,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: pn_person_name_key; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person_name_key; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY pn_person
@@ -2059,7 +2362,7 @@ ALTER TABLE ONLY pn_person
 
 
 --
--- Name: pn_person_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY pn_person
@@ -2067,7 +2370,7 @@ ALTER TABLE ONLY pn_person
 
 
 --
--- Name: rt_legal_document_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_legal_document_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_legal_document
@@ -2075,7 +2378,7 @@ ALTER TABLE ONLY rt_legal_document
 
 
 --
--- Name: rt_type_pkey_nid; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type_pkey_nid; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_type
@@ -2083,7 +2386,7 @@ ALTER TABLE ONLY rt_type
 
 
 --
--- Name: rt_type_unique_name; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type_unique_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_type
@@ -2091,7 +2394,7 @@ ALTER TABLE ONLY rt_type
 
 
 --
--- Name: sv_point_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_point
@@ -2099,7 +2402,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_point_unique_sv_survey_point_sv_survey_document; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point_unique_sv_survey_point_sv_survey_document; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_point
@@ -2107,7 +2410,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_survey_document_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_document_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_survey_document
@@ -2115,7 +2418,7 @@ ALTER TABLE ONLY sv_survey_document
 
 
 --
--- Name: sv_survey_point_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_point_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_survey_point
@@ -2123,7 +2426,7 @@ ALTER TABLE ONLY sv_survey_point
 
 
 --
--- Name: tp_face_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_face
@@ -2131,7 +2434,7 @@ ALTER TABLE ONLY tp_face
 
 
 --
--- Name: tp_face_unique_nodelist; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face_unique_nodelist; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_face
@@ -2139,7 +2442,7 @@ ALTER TABLE ONLY tp_face
 
 
 --
--- Name: tp_node_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_node_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_node
@@ -2147,7 +2450,7 @@ ALTER TABLE ONLY tp_node
 
 
 --
--- Name: tp_volume_facelist_key; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume_facelist_key; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_volume
@@ -2155,7 +2458,7 @@ ALTER TABLE ONLY tp_volume
 
 
 --
--- Name: tp_volume_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_volume
@@ -2163,56 +2466,93 @@ ALTER TABLE ONLY tp_volume
 
 
 --
--- Name: sv_point_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_idx_holelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_face_idx_holelist ON tp_face USING gin (holelist);
+
+
+--
+-- Name: tp_face_idx_nodelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_face_idx_nodelist ON tp_face USING gin (nodelist);
+
+
+--
+-- Name: tp_volume_idx_facelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_volume_idx_facelist ON tp_volume USING gin (facelist);
+
+
+--
+-- Name: sv_point_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER sv_point_after_trigger AFTER INSERT OR DELETE OR UPDATE ON sv_point FOR EACH ROW EXECUTE PROCEDURE sv_point_after();
 
 
 --
--- Name: sv_point_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: sv_point_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER sv_point_before_trigger BEFORE INSERT OR UPDATE ON sv_point FOR EACH ROW EXECUTE PROCEDURE sv_point_before();
 
 
 --
--- Name: tp_face_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_face_after_trigger AFTER INSERT OR DELETE OR UPDATE ON tp_face FOR EACH ROW EXECUTE PROCEDURE tp_face_after();
 
 
 --
--- Name: tp_face_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_face_before_trigger BEFORE INSERT OR UPDATE ON tp_face FOR EACH ROW EXECUTE PROCEDURE tp_face_before();
 
 
 --
--- Name: tp_node_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_node_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_node_after_trigger BEFORE INSERT OR DELETE OR UPDATE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_after();
 
 
 --
--- Name: tp_node_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_node_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_node_before_trigger BEFORE INSERT OR UPDATE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_before();
 
 
 --
--- Name: tp_volume_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_volume_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_volume_before_trigger BEFORE INSERT OR UPDATE ON tp_volume FOR EACH ROW EXECUTE PROCEDURE tp_volume_before();
 
 
 --
--- Name: im_building_individual_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: Tableim_building_individual_unit_level_fkey_im_levles; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT "Tableim_building_individual_unit_level_fkey_im_levles" FOREIGN KEY (im_levels) REFERENCES im_levels(nid);
+
+
+--
+-- Name: Tableim_building_level_unit_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT "Tableim_building_level_unit_fkey_im_building_im_levels" FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
+
+
+--
+-- Name: im_building_individual_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -2220,7 +2560,31 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_levels_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_level_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT im_building_individual_unit_level_fkey_projection FOREIGN KEY (projection) REFERENCES tp_face(gid);
+
+
+--
+-- Name: im_building_level_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_fkey_im_building FOREIGN KEY (im_building) REFERENCES im_building(nid);
+
+
+--
+-- Name: im_building_level_unit_fkey_model; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_fkey_model FOREIGN KEY (model) REFERENCES tp_volume(gid);
+
+
+--
+-- Name: im_building_levels_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_levels
@@ -2228,15 +2592,15 @@ ALTER TABLE ONLY im_building_levels
 
 
 --
--- Name: im_building_levels_fkey_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_levles_fkey_im_levles; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_levels
-    ADD CONSTRAINT im_building_levels_fkey_im_levels FOREIGN KEY (im_levels) REFERENCES im_levels(name);
+    ADD CONSTRAINT im_building_levles_fkey_im_levles FOREIGN KEY (im_levels) REFERENCES im_levels(nid);
 
 
 --
--- Name: im_building_shared_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_shared_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_shared_unit
@@ -2244,7 +2608,7 @@ ALTER TABLE ONLY im_building_shared_unit
 
 
 --
--- Name: im_individual_unit_level_fkey_im_building_hrsz_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_individual_unit_level_fkey_im_building_hrsz_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit_level
@@ -2252,15 +2616,7 @@ ALTER TABLE ONLY im_building_individual_unit_level
 
 
 --
--- Name: im_individual_unit_level_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY im_building_individual_unit_level
-    ADD CONSTRAINT im_individual_unit_level_fkey_im_building_im_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
-
-
---
--- Name: im_parcel_fkey_settlement; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_parcel_fkey_settlement; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_parcel
@@ -2268,15 +2624,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_shared_unit_level_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY im_shared_unit_level
-    ADD CONSTRAINT im_shared_unit_level_fkey_im_building_im_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
-
-
---
--- Name: im_shared_unit_level_fkey_im_building_name; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_shared_unit_level_fkey_im_building_name; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_shared_unit_level
@@ -2284,7 +2632,7 @@ ALTER TABLE ONLY im_shared_unit_level
 
 
 --
--- Name: im_underpass_fkey_settlement; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_fkey_settlement; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass
@@ -2292,7 +2640,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_individual_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -2300,7 +2648,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_shared_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_shared_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -2308,7 +2656,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_unit_fkey_im_underpass; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_unit_fkey_im_underpass; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -2316,7 +2664,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: rt_right_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2324,7 +2672,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_building_individual_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_building_individual_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2332,7 +2680,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_parcel; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_parcel; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2340,7 +2688,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_underpass; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_underpass; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2348,7 +2696,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_underpass_individual_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_underpass_individual_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2356,7 +2704,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_pn_person; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_pn_person; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2364,7 +2712,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_rt_legal_document; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_rt_legal_document; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2372,7 +2720,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_rt_type; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_rt_type; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -2380,7 +2728,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: sv_point_fkey_sv_survey_document; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: sv_point_fkey_sv_survey_document; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point
@@ -2388,7 +2736,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_point_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: sv_point_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point
@@ -2396,7 +2744,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: tp_node_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: tp_node_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_node
