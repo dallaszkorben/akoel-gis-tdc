@@ -9,18 +9,28 @@ SET check_function_bodies = false;
 SET client_min_messages = warning;
 
 --
--- Name: own; Type: SCHEMA; Schema: -; Owner: tdc
+-- Name: main; Type: SCHEMA; Schema: -; Owner: tdc
 --
 
-CREATE SCHEMA own;
+CREATE SCHEMA main;
 
 
-ALTER SCHEMA own OWNER TO tdc;
-
-SET search_path = own, pg_catalog;
+ALTER SCHEMA main OWNER TO tdc;
 
 --
--- Name: geod_position; Type: TYPE; Schema: own; Owner: tdc
+-- Name: SCHEMA main; Type: COMMENT; Schema: -; Owner: tdc
+--
+
+COMMENT ON SCHEMA main IS 'Itt helyezkednek el a saját
+-Tábláim
+-Függvényeim
+-Triggereim';
+
+
+SET search_path = main, pg_catalog;
+
+--
+-- Name: geod_position; Type: TYPE; Schema: main; Owner: tdc
 --
 
 CREATE TYPE geod_position AS (
@@ -30,35 +40,107 @@ h double precision
 );
 
 
-ALTER TYPE own.geod_position OWNER TO tdc;
+ALTER TYPE main.geod_position OWNER TO tdc;
 
 --
--- Name: position_2d; Type: TYPE; Schema: own; Owner: tdc
+-- Name: parcel_with_data; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE position_2d AS (
-x double precision,
-y double precision
+CREATE TYPE parcel_with_data AS (
+selected_projection bigint,
+selected_name text,
+selected_nid bigint,
+immovable_type integer
 );
 
 
-ALTER TYPE own.position_2d OWNER TO tdc;
+ALTER TYPE main.parcel_with_data OWNER TO tdc;
 
 --
--- Name: position_3d; Type: TYPE; Schema: own; Owner: tdc
+-- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE TYPE position_3d AS (
-x double precision,
-y double precision,
-z double precision
-);
+CREATE FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) RETURNS text
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $_$
+DECLARE
+  output text;
+BEGIN
+  output := hrsz_main::text||CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction::text END;
+  return output;
+END;
+$_$;
 
 
-ALTER TYPE own.position_3d OWNER TO tdc;
+ALTER FUNCTION main.hrsz_concat(hrsz_main integer, hrsz_fraction integer) OWNER TO tdc;
 
 --
--- Name: sv_point_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: parcels_with_data(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION parcels_with_data() RETURNS SETOF parcel_with_data
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.parcel_with_data%rowtype;
+BEGIN
+
+
+  ---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  FOR output IN
+    SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      'im_parcel' AS selected_name, 
+      parcel.nid AS selected_nid,
+      1 AS immovable_type
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r
+    WHERE 
+       parcel.nid=r.im_parcel AND      
+       r.rt_type=1 AND
+       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+  FOR output IN
+     SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      'im_parcel' AS selected_name, 
+      parcel.nid AS selected_nid,
+      2 AS immovable_type
+    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+    WHERE 
+      parcel.nid=r.im_parcel AND 
+      r.rt_type=1 AND
+      building.im_settlement=parcel.im_settlement AND 
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+
+  RETURN;
+END;
+$$;
+
+
+ALTER FUNCTION main.parcels_with_data() OWNER TO tdc;
+
+--
+-- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION sv_point_after() RETURNS trigger
@@ -115,10 +197,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.sv_point_after() OWNER TO tdc;
+ALTER FUNCTION main.sv_point_after() OWNER TO tdc;
 
 --
--- Name: sv_point_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: sv_point_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION sv_point_before() RETURNS trigger
@@ -152,10 +234,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.sv_point_before() OWNER TO tdc;
+ALTER FUNCTION main.sv_point_before() OWNER TO tdc;
 
 --
--- Name: tp_face_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_face_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_face_after() RETURNS trigger
@@ -197,10 +279,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_face_after() OWNER TO tdc;
+ALTER FUNCTION main.tp_face_after() OWNER TO tdc;
 
 --
--- Name: tp_face_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_face_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_face_before() RETURNS trigger
@@ -329,10 +411,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_face_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_face_before() OWNER TO tdc;
 
 --
--- Name: tp_node_after(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_node_after(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_node_after() RETURNS trigger
@@ -397,10 +479,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_node_after() OWNER TO tdc;
+ALTER FUNCTION main.tp_node_after() OWNER TO tdc;
 
 --
--- Name: tp_node_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_node_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_node_before() RETURNS trigger
@@ -438,10 +520,10 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_node_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_node_before() OWNER TO tdc;
 
 --
--- Name: tp_volume_before(); Type: FUNCTION; Schema: own; Owner: tdc
+-- Name: tp_volume_before(); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
 CREATE FUNCTION tp_volume_before() RETURNS trigger
@@ -548,14 +630,14 @@ END;
 $$;
 
 
-ALTER FUNCTION own.tp_volume_before() OWNER TO tdc;
+ALTER FUNCTION main.tp_volume_before() OWNER TO tdc;
 
 SET default_tablespace = '';
 
 SET default_with_oids = false;
 
 --
--- Name: im_building; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building (
@@ -567,21 +649,22 @@ CREATE TABLE im_building (
     model bigint,
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
-    hrsz_fraction integer NOT NULL
+    hrsz_fraction integer,
+    title_angle numeric(4,2)
 );
 
 
-ALTER TABLE own.im_building OWNER TO tdc;
+ALTER TABLE main.im_building OWNER TO tdc;
 
 --
--- Name: TABLE im_building; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building IS 'Az épületeket reprezentáló tábla';
 
 
 --
--- Name: im_building_individual_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_individual_unit (
@@ -591,37 +674,40 @@ CREATE TABLE im_building_individual_unit (
 );
 
 
-ALTER TABLE own.im_building_individual_unit OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_building_individual_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_individual_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_individual_unit IS 'A társasházakban elhelyezkedő önállóan forgalomképes ingatlanok, lakások, üzlethelyiségek';
 
 
 --
--- Name: im_building_individual_unit_level; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit_level; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_individual_unit_level (
     im_building bigint NOT NULL,
     hrsz_unit integer NOT NULL,
-    im_levels text NOT NULL
+    projection bigint,
+    im_levels bigint NOT NULL,
+    area integer,
+    volume integer
 );
 
 
-ALTER TABLE own.im_building_individual_unit_level OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit_level OWNER TO tdc;
 
 --
--- Name: TABLE im_building_individual_unit_level; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_individual_unit_level; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_individual_unit_level IS 'Társasházban található önálóan forgalomképes helyiségek szintjeit határozza meg. (mivel egy helyiség akár több szinten is elhelyezkedhet)';
 
 
 --
--- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_building_individual_unit_nid_seq
@@ -632,36 +718,79 @@ CREATE SEQUENCE im_building_individual_unit_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_building_individual_unit_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_building_individual_unit_nid_seq OWNER TO tdc;
 
 --
--- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_building_individual_unit_nid_seq OWNED BY im_building_individual_unit.nid;
 
 
 --
--- Name: im_building_levels; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_level_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE TABLE im_building_level_unit (
+    im_building bigint NOT NULL,
+    im_levels bigint NOT NULL,
+    area integer,
+    volume integer,
+    model bigint
+);
+
+
+ALTER TABLE main.im_building_level_unit OWNER TO tdc;
+
+--
+-- Name: TABLE im_building_level_unit; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON TABLE im_building_level_unit IS 'Egy szintet képvisel egy családi háznál';
+
+
+--
+-- Name: im_building_level_unig_volume_seq; Type: SEQUENCE; Schema: main; Owner: tdc
+--
+
+CREATE SEQUENCE im_building_level_unig_volume_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE main.im_building_level_unig_volume_seq OWNER TO tdc;
+
+--
+-- Name: im_building_level_unig_volume_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
+--
+
+ALTER SEQUENCE im_building_level_unig_volume_seq OWNED BY im_building_level_unit.volume;
+
+
+--
+-- Name: im_building_levels; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_levels (
     im_building bigint NOT NULL,
-    im_levels text NOT NULL
+    im_levels bigint NOT NULL
 );
 
 
-ALTER TABLE own.im_building_levels OWNER TO tdc;
+ALTER TABLE main.im_building_levels OWNER TO tdc;
 
 --
--- Name: TABLE im_building_levels; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_levels; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_levels IS 'Egy adott épületen belül előforduló szintek';
 
 
 --
--- Name: im_building_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_building_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_building_nid_seq
@@ -672,17 +801,17 @@ CREATE SEQUENCE im_building_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_building_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_building_nid_seq OWNER TO tdc;
 
 --
--- Name: im_building_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_building_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_building_nid_seq OWNED BY im_building.nid;
 
 
 --
--- Name: im_building_shared_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_shared_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_building_shared_unit (
@@ -691,35 +820,57 @@ CREATE TABLE im_building_shared_unit (
 );
 
 
-ALTER TABLE own.im_building_shared_unit OWNER TO tdc;
+ALTER TABLE main.im_building_shared_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_building_shared_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_building_shared_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_building_shared_unit IS 'A társasházak közös helyiségei';
 
 
 --
--- Name: im_levels; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_levels (
-    name text NOT NULL
+    name text NOT NULL,
+    nid bigint NOT NULL
 );
 
 
-ALTER TABLE own.im_levels OWNER TO tdc;
+ALTER TABLE main.im_levels OWNER TO tdc;
 
 --
--- Name: TABLE im_levels; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_levels; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_levels IS 'Az összes előforduló szint megnevezése az épületekben';
 
 
 --
--- Name: im_parcel; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
+--
+
+CREATE SEQUENCE im_levels_nid_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER TABLE main.im_levels_nid_seq OWNER TO tdc;
+
+--
+-- Name: im_levels_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
+--
+
+ALTER SEQUENCE im_levels_nid_seq OWNED BY im_levels.nid;
+
+
+--
+-- Name: im_parcel; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_parcel (
@@ -727,16 +878,17 @@ CREATE TABLE im_parcel (
     area integer NOT NULL,
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
-    hrsz_partial integer,
+    hrsz_fraction integer,
     projection bigint NOT NULL,
-    model bigint
+    model bigint,
+    title_angle numeric(4,2) DEFAULT 0
 );
 
 
-ALTER TABLE own.im_parcel OWNER TO tdc;
+ALTER TABLE main.im_parcel OWNER TO tdc;
 
 --
--- Name: TABLE im_parcel; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_parcel; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_parcel IS 'Ez az ugynevezett földrészlet.
@@ -744,7 +896,14 @@ Az im_parcel-ek topologiát alkotnak';
 
 
 --
--- Name: im_settlement; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: COLUMN im_parcel.title_angle; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON COLUMN im_parcel.title_angle IS 'A helyrajziszám dőlésszöge';
+
+
+--
+-- Name: im_settlement; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_settlement (
@@ -752,17 +911,17 @@ CREATE TABLE im_settlement (
 );
 
 
-ALTER TABLE own.im_settlement OWNER TO tdc;
+ALTER TABLE main.im_settlement OWNER TO tdc;
 
 --
--- Name: TABLE im_settlement; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_settlement; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_settlement IS 'Magyarorszag településeinek neve';
 
 
 --
--- Name: im_shared_unit_level; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_shared_unit_level; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_shared_unit_level (
@@ -772,17 +931,17 @@ CREATE TABLE im_shared_unit_level (
 );
 
 
-ALTER TABLE own.im_shared_unit_level OWNER TO tdc;
+ALTER TABLE main.im_shared_unit_level OWNER TO tdc;
 
 --
--- Name: TABLE im_shared_unit_level; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_shared_unit_level; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_shared_unit_level IS 'Társasházakban a közös helyiségek, fő épületszerkezeti elemek szintjeit határozza meg. (mivel a közös helyiségek akár több szinten is elhelyezkedhetnek)';
 
 
 --
--- Name: im_underpass; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass (
@@ -797,10 +956,10 @@ CREATE TABLE im_underpass (
 );
 
 
-ALTER TABLE own.im_underpass OWNER TO tdc;
+ALTER TABLE main.im_underpass OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass IS 'Aluljárók tábla.
@@ -809,7 +968,7 @@ Rendelkeznie kell vetülettel és lehetőség szerint 3D modellel is';
 
 
 --
--- Name: im_underpass_block; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_block; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_block (
@@ -819,17 +978,17 @@ CREATE TABLE im_underpass_block (
 );
 
 
-ALTER TABLE own.im_underpass_block OWNER TO tdc;
+ALTER TABLE main.im_underpass_block OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_block; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_block; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_block IS 'Ezek az objektumok foglaljak egybe az aluljáróban található üzleteket. Tulajdonképpen analógok a Building-gel társasház esetén';
 
 
 --
--- Name: im_underpass_individual_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_individual_unit (
@@ -841,10 +1000,10 @@ CREATE TABLE im_underpass_individual_unit (
 );
 
 
-ALTER TABLE own.im_underpass_individual_unit OWNER TO tdc;
+ALTER TABLE main.im_underpass_individual_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_individual_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_individual_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_individual_unit IS 'Ezek az ingatlantípusok az aluljárókban lévő üzletek. 
@@ -852,7 +1011,7 @@ EÖI';
 
 
 --
--- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE im_underpass_individual_unit_nid_seq
@@ -863,17 +1022,17 @@ CREATE SEQUENCE im_underpass_individual_unit_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.im_underpass_individual_unit_nid_seq OWNER TO tdc;
+ALTER TABLE main.im_underpass_individual_unit_nid_seq OWNER TO tdc;
 
 --
--- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE im_underpass_individual_unit_nid_seq OWNED BY im_underpass_individual_unit.nid;
 
 
 --
--- Name: im_underpass_shared_unit; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE im_underpass_shared_unit (
@@ -882,17 +1041,17 @@ CREATE TABLE im_underpass_shared_unit (
 );
 
 
-ALTER TABLE own.im_underpass_shared_unit OWNER TO tdc;
+ALTER TABLE main.im_underpass_shared_unit OWNER TO tdc;
 
 --
--- Name: TABLE im_underpass_shared_unit; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE im_underpass_shared_unit; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE im_underpass_shared_unit IS 'Ez az egység reprezentálja az aluljáróban lévő üzletek közös részét -ami mindenkihez tartozik és közösen fizetik a fenntartási költségeit';
 
 
 --
--- Name: pn_person; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE pn_person (
@@ -901,37 +1060,38 @@ CREATE TABLE pn_person (
 );
 
 
-ALTER TABLE own.pn_person OWNER TO tdc;
+ALTER TABLE main.pn_person OWNER TO tdc;
 
 --
--- Name: TABLE pn_person; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE pn_person; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE pn_person IS 'Ez a személyeket tartalmazó tábla. Ide tartoznak természtes és jogi személyek is';
 
 
 --
--- Name: rt_legal_document; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_legal_document; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_legal_document (
     nid bigint NOT NULL,
     content text NOT NULL,
-    date date NOT NULL
+    date date NOT NULL,
+    sale_price numeric(12,2)
 );
 
 
-ALTER TABLE own.rt_legal_document OWNER TO tdc;
+ALTER TABLE main.rt_legal_document OWNER TO tdc;
 
 --
--- Name: TABLE rt_legal_document; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_legal_document; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_legal_document IS 'Azon dokumentumok, melyek alapján egy személy valamilyen jogi kapcsolatba került egy ingatlannal';
 
 
 --
--- Name: rt_legal_document_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: rt_legal_document_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE rt_legal_document_nid_seq
@@ -942,17 +1102,17 @@ CREATE SEQUENCE rt_legal_document_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.rt_legal_document_nid_seq OWNER TO tdc;
+ALTER TABLE main.rt_legal_document_nid_seq OWNER TO tdc;
 
 --
--- Name: rt_legal_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: rt_legal_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE rt_legal_document_nid_seq OWNED BY rt_legal_document.nid;
 
 
 --
--- Name: rt_right; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_right; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_right (
@@ -969,17 +1129,17 @@ CREATE TABLE rt_right (
 );
 
 
-ALTER TABLE own.rt_right OWNER TO tdc;
+ALTER TABLE main.rt_right OWNER TO tdc;
 
 --
--- Name: TABLE rt_right; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_right; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_right IS 'Jogok. Ez a tábla köti össze a személyt egy ingatlannal valamilyen jogi dokumentum alapján. ';
 
 
 --
--- Name: rt_type; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE rt_type (
@@ -988,17 +1148,17 @@ CREATE TABLE rt_type (
 );
 
 
-ALTER TABLE own.rt_type OWNER TO tdc;
+ALTER TABLE main.rt_type OWNER TO tdc;
 
 --
--- Name: TABLE rt_type; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE rt_type; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE rt_type IS 'Itt szerepelnek azok a jogok, melyek alapján egy személy kapcsolatba kerülhet egy ingatlannal';
 
 
 --
--- Name: sv_point; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_point (
@@ -1014,17 +1174,17 @@ CREATE TABLE sv_point (
 );
 
 
-ALTER TABLE own.sv_point OWNER TO tdc;
+ALTER TABLE main.sv_point OWNER TO tdc;
 
 --
--- Name: TABLE sv_point; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_point; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_point IS 'Mért pont. Lehet 2 és 3 dimenziós is';
 
 
 --
--- Name: sv_point_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_point_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_point_nid_seq
@@ -1035,17 +1195,17 @@ CREATE SEQUENCE sv_point_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_point_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_point_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_point_nid_seq OWNED BY sv_point.nid;
 
 
 --
--- Name: sv_survey_document; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_document; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_survey_document (
@@ -1055,17 +1215,17 @@ CREATE TABLE sv_survey_document (
 );
 
 
-ALTER TABLE own.sv_survey_document OWNER TO tdc;
+ALTER TABLE main.sv_survey_document OWNER TO tdc;
 
 --
--- Name: TABLE sv_survey_document; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_survey_document; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_survey_document IS 'Mérési jegyzőkönyv a felmért pontok számára';
 
 
 --
--- Name: sv_survey_document_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_survey_document_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_survey_document_nid_seq
@@ -1076,37 +1236,37 @@ CREATE SEQUENCE sv_survey_document_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_survey_document_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_survey_document_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_survey_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_survey_document_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_survey_document_nid_seq OWNED BY sv_survey_document.nid;
 
 
 --
--- Name: sv_survey_point; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_point; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE sv_survey_point (
     nid bigint NOT NULL,
     description text,
-    name text
+    name text NOT NULL
 );
 
 
-ALTER TABLE own.sv_survey_point OWNER TO tdc;
+ALTER TABLE main.sv_survey_point OWNER TO tdc;
 
 --
--- Name: TABLE sv_survey_point; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE sv_survey_point; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE sv_survey_point IS 'Mérési pont azonosítása és leírása';
 
 
 --
--- Name: sv_survey_point_nid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: sv_survey_point_nid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE sv_survey_point_nid_seq
@@ -1117,10 +1277,10 @@ CREATE SEQUENCE sv_survey_point_nid_seq
     CACHE 1;
 
 
-ALTER TABLE own.sv_survey_point_nid_seq OWNER TO tdc;
+ALTER TABLE main.sv_survey_point_nid_seq OWNER TO tdc;
 
 --
--- Name: sv_survey_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: sv_survey_point_nid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE sv_survey_point_nid_seq OWNED BY sv_survey_point.nid;
@@ -1129,7 +1289,7 @@ ALTER SEQUENCE sv_survey_point_nid_seq OWNED BY sv_survey_point.nid;
 SET default_with_oids = true;
 
 --
--- Name: tp_face; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_face (
@@ -1141,17 +1301,17 @@ CREATE TABLE tp_face (
 );
 
 
-ALTER TABLE own.tp_face OWNER TO tdc;
+ALTER TABLE main.tp_face OWNER TO tdc;
 
 --
--- Name: TABLE tp_face; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_face; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_face IS 'Felület. Pontjait a tp_node elemei alkotják';
 
 
 --
--- Name: tp_face_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_face_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_face_gid_seq
@@ -1162,17 +1322,17 @@ CREATE SEQUENCE tp_face_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_face_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_face_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_face_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_face_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_face_gid_seq OWNED BY tp_face.gid;
 
 
 --
--- Name: tp_node; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_node; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_node (
@@ -1182,17 +1342,17 @@ CREATE TABLE tp_node (
 );
 
 
-ALTER TABLE own.tp_node OWNER TO tdc;
+ALTER TABLE main.tp_node OWNER TO tdc;
 
 --
--- Name: TABLE tp_node; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_node; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_node IS 'Csomópont. Egy sv_survey_point-ot azonosít. Van geometriája, mely mindig a dátum szerinti aktuális sv_point adatait tartalmazza.';
 
 
 --
--- Name: tp_node_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_node_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_node_gid_seq
@@ -1203,38 +1363,38 @@ CREATE SEQUENCE tp_node_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_node_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_node_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_node_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_node_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_node_gid_seq OWNED BY tp_node.gid;
 
 
 --
--- Name: tp_volume; Type: TABLE; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
 --
 
 CREATE TABLE tp_volume (
     gid bigint NOT NULL,
-    facelist bigint[],
+    facelist bigint[] NOT NULL,
     note text,
     geom public.geometry(PolyhedralSurfaceZ)
 );
 
 
-ALTER TABLE own.tp_volume OWNER TO tdc;
+ALTER TABLE main.tp_volume OWNER TO tdc;
 
 --
--- Name: TABLE tp_volume; Type: COMMENT; Schema: own; Owner: tdc
+-- Name: TABLE tp_volume; Type: COMMENT; Schema: main; Owner: tdc
 --
 
 COMMENT ON TABLE tp_volume IS '3D-s térfogati elem. tp_face-ek írják le';
 
 
 --
--- Name: tp_volume_gid_seq; Type: SEQUENCE; Schema: own; Owner: tdc
+-- Name: tp_volume_gid_seq; Type: SEQUENCE; Schema: main; Owner: tdc
 --
 
 CREATE SEQUENCE tp_volume_gid_seq
@@ -1245,80 +1405,88 @@ CREATE SEQUENCE tp_volume_gid_seq
     CACHE 1;
 
 
-ALTER TABLE own.tp_volume_gid_seq OWNER TO tdc;
+ALTER TABLE main.tp_volume_gid_seq OWNER TO tdc;
 
 --
--- Name: tp_volume_gid_seq; Type: SEQUENCE OWNED BY; Schema: own; Owner: tdc
+-- Name: tp_volume_gid_seq; Type: SEQUENCE OWNED BY; Schema: main; Owner: tdc
 --
 
 ALTER SEQUENCE tp_volume_gid_seq OWNED BY tp_volume.gid;
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building ALTER COLUMN nid SET DEFAULT nextval('im_building_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit ALTER COLUMN nid SET DEFAULT nextval('im_building_individual_unit_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_levels ALTER COLUMN nid SET DEFAULT nextval('im_levels_nid_seq'::regclass);
+
+
+--
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit ALTER COLUMN nid SET DEFAULT nextval('im_underpass_individual_unit_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_legal_document ALTER COLUMN nid SET DEFAULT nextval('rt_legal_document_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point ALTER COLUMN nid SET DEFAULT nextval('sv_point_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_survey_document ALTER COLUMN nid SET DEFAULT nextval('sv_survey_document_nid_seq'::regclass);
 
 
 --
--- Name: nid; Type: DEFAULT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY sv_survey_point ALTER COLUMN nid SET DEFAULT nextval('sv_survey_point_nid_seq'::regclass);
-
-
---
--- Name: gid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: gid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_face ALTER COLUMN gid SET DEFAULT nextval('tp_face_gid_seq'::regclass);
 
 
 --
--- Name: gid; Type: DEFAULT; Schema: own; Owner: tdc
+-- Name: gid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_volume ALTER COLUMN gid SET DEFAULT nextval('tp_volume_gid_seq'::regclass);
 
 
 --
--- Name: im_building_individual_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: Tableim_building_individual_unit_level_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT "Tableim_building_individual_unit_level_pkey" PRIMARY KEY (im_building, hrsz_unit, im_levels);
+
+
+--
+-- Name: im_building_individual_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -1326,7 +1494,7 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_individual_unit_unique_im_building_hrsz_unit; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_individual_unit_unique_im_building_hrsz_unit; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -1334,15 +1502,23 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_levels_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_level_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_pkey PRIMARY KEY (im_building, im_levels);
+
+
+--
+-- Name: im_building_levels_fkey_im_building_im_levels; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_levels
-    ADD CONSTRAINT im_building_levels_pkey PRIMARY KEY (im_building, im_levels);
+    ADD CONSTRAINT im_building_levels_fkey_im_building_im_levels PRIMARY KEY (im_building, im_levels);
 
 
 --
--- Name: im_building_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1350,7 +1526,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_shared_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_shared_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building_shared_unit
@@ -1358,7 +1534,7 @@ ALTER TABLE ONLY im_building_shared_unit
 
 
 --
--- Name: im_building_unique_im_settlement_hrsz_main_hrsz_fraction; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_im_settlement_hrsz_main_hrsz_fraction; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1366,7 +1542,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1374,7 +1550,7 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_building_unique_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_building_unique_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_building
@@ -1382,23 +1558,23 @@ ALTER TABLE ONLY im_building
 
 
 --
--- Name: im_individual_unit_level_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
---
-
-ALTER TABLE ONLY im_building_individual_unit_level
-    ADD CONSTRAINT im_individual_unit_level_pkey PRIMARY KEY (im_building, hrsz_unit, im_levels);
-
-
---
--- Name: im_levels_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_levels
-    ADD CONSTRAINT im_levels_pkey PRIMARY KEY (name);
+    ADD CONSTRAINT im_levels_pkey PRIMARY KEY (nid);
 
 
 --
--- Name: im_parcel_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_levels_unique_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_levels
+    ADD CONSTRAINT im_levels_unique_name UNIQUE (name);
+
+
+--
+-- Name: im_parcel_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1406,15 +1582,15 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
-    ADD CONSTRAINT im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial UNIQUE (im_settlement, hrsz_main, hrsz_partial);
+    ADD CONSTRAINT im_parcel_unique_hrsz_settlement_hrsz_main_hrsz_partial UNIQUE (im_settlement, hrsz_main, hrsz_fraction);
 
 
 --
--- Name: im_parcel_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1422,7 +1598,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_parcel_unique_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_parcel_unique_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1430,7 +1606,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_settlement_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_settlement_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_settlement
@@ -1438,7 +1614,7 @@ ALTER TABLE ONLY im_settlement
 
 
 --
--- Name: im_shared_unit_level_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_shared_unit_level_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_shared_unit_level
@@ -1446,7 +1622,7 @@ ALTER TABLE ONLY im_shared_unit_level
 
 
 --
--- Name: im_underpass_individual_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -1454,7 +1630,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_individual_unit_unique_im_underpass_unit_hrsz_unit; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_individual_unit_unique_im_underpass_unit_hrsz_unit; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -1462,7 +1638,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1470,7 +1646,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_shared_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -1478,7 +1654,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_shared_unit_unique_im_underpass_unit_name; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_shared_unit_unique_im_underpass_unit_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -1486,7 +1662,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_unigue_projection; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unigue_projection; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1494,7 +1670,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unique_hrsz_settlement_hrsz_main_hrsz_parcial; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unique_hrsz_settlement_hrsz_main_hrsz_parcial; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1502,7 +1678,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unique_model; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unique_model; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1510,7 +1686,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_unit_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -1518,7 +1694,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: im_underpass_unit_unique_im_underpass_hrsz_eoi; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: im_underpass_unit_unique_im_underpass_hrsz_eoi; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -1526,7 +1702,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: pn_person_name_key; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person_name_key; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY pn_person
@@ -1534,7 +1710,7 @@ ALTER TABLE ONLY pn_person
 
 
 --
--- Name: pn_person_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: pn_person_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY pn_person
@@ -1542,7 +1718,7 @@ ALTER TABLE ONLY pn_person
 
 
 --
--- Name: rt_legal_document_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_legal_document_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_legal_document
@@ -1550,7 +1726,7 @@ ALTER TABLE ONLY rt_legal_document
 
 
 --
--- Name: rt_type_pkey_nid; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type_pkey_nid; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_type
@@ -1558,7 +1734,7 @@ ALTER TABLE ONLY rt_type
 
 
 --
--- Name: rt_type_unique_name; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: rt_type_unique_name; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY rt_type
@@ -1566,7 +1742,7 @@ ALTER TABLE ONLY rt_type
 
 
 --
--- Name: sv_point_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_point
@@ -1574,7 +1750,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_point_unique_sv_survey_point_sv_survey_document; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_point_unique_sv_survey_point_sv_survey_document; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_point
@@ -1582,7 +1758,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_survey_document_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_document_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_survey_document
@@ -1590,7 +1766,7 @@ ALTER TABLE ONLY sv_survey_document
 
 
 --
--- Name: sv_survey_point_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: sv_survey_point_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY sv_survey_point
@@ -1598,7 +1774,7 @@ ALTER TABLE ONLY sv_survey_point
 
 
 --
--- Name: tp_face_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_face
@@ -1606,7 +1782,7 @@ ALTER TABLE ONLY tp_face
 
 
 --
--- Name: tp_face_unique_nodelist; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_face_unique_nodelist; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_face
@@ -1614,7 +1790,7 @@ ALTER TABLE ONLY tp_face
 
 
 --
--- Name: tp_node_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_node_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_node
@@ -1622,7 +1798,7 @@ ALTER TABLE ONLY tp_node
 
 
 --
--- Name: tp_volume_facelist_key; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume_facelist_key; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_volume
@@ -1630,7 +1806,7 @@ ALTER TABLE ONLY tp_volume
 
 
 --
--- Name: tp_volume_pkey; Type: CONSTRAINT; Schema: own; Owner: tdc; Tablespace: 
+-- Name: tp_volume_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
 ALTER TABLE ONLY tp_volume
@@ -1638,56 +1814,93 @@ ALTER TABLE ONLY tp_volume
 
 
 --
--- Name: sv_point_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_idx_holelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_face_idx_holelist ON tp_face USING gin (holelist);
+
+
+--
+-- Name: tp_face_idx_nodelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_face_idx_nodelist ON tp_face USING gin (nodelist);
+
+
+--
+-- Name: tp_volume_idx_facelist; Type: INDEX; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE INDEX tp_volume_idx_facelist ON tp_volume USING gin (facelist);
+
+
+--
+-- Name: sv_point_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER sv_point_after_trigger AFTER INSERT OR DELETE OR UPDATE ON sv_point FOR EACH ROW EXECUTE PROCEDURE sv_point_after();
 
 
 --
--- Name: sv_point_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: sv_point_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER sv_point_before_trigger BEFORE INSERT OR UPDATE ON sv_point FOR EACH ROW EXECUTE PROCEDURE sv_point_before();
 
 
 --
--- Name: tp_face_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_face_after_trigger AFTER INSERT OR DELETE OR UPDATE ON tp_face FOR EACH ROW EXECUTE PROCEDURE tp_face_after();
 
 
 --
--- Name: tp_face_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_face_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_face_before_trigger BEFORE INSERT OR UPDATE ON tp_face FOR EACH ROW EXECUTE PROCEDURE tp_face_before();
 
 
 --
--- Name: tp_node_after_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_node_after_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_node_after_trigger BEFORE INSERT OR DELETE OR UPDATE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_after();
 
 
 --
--- Name: tp_node_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_node_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_node_before_trigger BEFORE INSERT OR UPDATE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_before();
 
 
 --
--- Name: tp_volume_before_trigger; Type: TRIGGER; Schema: own; Owner: tdc
+-- Name: tp_volume_before_trigger; Type: TRIGGER; Schema: main; Owner: tdc
 --
 
 CREATE TRIGGER tp_volume_before_trigger BEFORE INSERT OR UPDATE ON tp_volume FOR EACH ROW EXECUTE PROCEDURE tp_volume_before();
 
 
 --
--- Name: im_building_individual_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: Tableim_building_individual_unit_level_fkey_im_levles; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT "Tableim_building_individual_unit_level_fkey_im_levles" FOREIGN KEY (im_levels) REFERENCES im_levels(nid);
+
+
+--
+-- Name: Tableim_building_level_unit_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT "Tableim_building_level_unit_fkey_im_building_im_levels" FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
+
+
+--
+-- Name: im_building_individual_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit
@@ -1695,7 +1908,31 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
--- Name: im_building_levels_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_individual_unit_level_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_individual_unit_level
+    ADD CONSTRAINT im_building_individual_unit_level_fkey_projection FOREIGN KEY (projection) REFERENCES tp_face(gid);
+
+
+--
+-- Name: im_building_level_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_fkey_im_building FOREIGN KEY (im_building) REFERENCES im_building(nid);
+
+
+--
+-- Name: im_building_level_unit_fkey_model; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_fkey_model FOREIGN KEY (model) REFERENCES tp_volume(gid);
+
+
+--
+-- Name: im_building_levels_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_levels
@@ -1703,15 +1940,15 @@ ALTER TABLE ONLY im_building_levels
 
 
 --
--- Name: im_building_levels_fkey_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_levles_fkey_im_levles; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_levels
-    ADD CONSTRAINT im_building_levels_fkey_im_levels FOREIGN KEY (im_levels) REFERENCES im_levels(name);
+    ADD CONSTRAINT im_building_levles_fkey_im_levles FOREIGN KEY (im_levels) REFERENCES im_levels(nid);
 
 
 --
--- Name: im_building_shared_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_building_shared_unit_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_shared_unit
@@ -1719,7 +1956,7 @@ ALTER TABLE ONLY im_building_shared_unit
 
 
 --
--- Name: im_individual_unit_level_fkey_im_building_hrsz_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_individual_unit_level_fkey_im_building_hrsz_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_building_individual_unit_level
@@ -1727,15 +1964,7 @@ ALTER TABLE ONLY im_building_individual_unit_level
 
 
 --
--- Name: im_individual_unit_level_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY im_building_individual_unit_level
-    ADD CONSTRAINT im_individual_unit_level_fkey_im_building_im_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
-
-
---
--- Name: im_parcel_fkey_settlement; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_parcel_fkey_settlement; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_parcel
@@ -1743,15 +1972,7 @@ ALTER TABLE ONLY im_parcel
 
 
 --
--- Name: im_shared_unit_level_fkey_im_building_im_levels; Type: FK CONSTRAINT; Schema: own; Owner: tdc
---
-
-ALTER TABLE ONLY im_shared_unit_level
-    ADD CONSTRAINT im_shared_unit_level_fkey_im_building_im_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
-
-
---
--- Name: im_shared_unit_level_fkey_im_building_name; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_shared_unit_level_fkey_im_building_name; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_shared_unit_level
@@ -1759,7 +1980,7 @@ ALTER TABLE ONLY im_shared_unit_level
 
 
 --
--- Name: im_underpass_fkey_settlement; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_fkey_settlement; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass
@@ -1767,7 +1988,7 @@ ALTER TABLE ONLY im_underpass
 
 
 --
--- Name: im_underpass_individual_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_individual_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_individual_unit
@@ -1775,7 +1996,7 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 
 --
--- Name: im_underpass_shared_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_shared_unit_fkey_im_underpass_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_shared_unit
@@ -1783,7 +2004,7 @@ ALTER TABLE ONLY im_underpass_shared_unit
 
 
 --
--- Name: im_underpass_unit_fkey_im_underpass; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: im_underpass_unit_fkey_im_underpass; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY im_underpass_block
@@ -1791,7 +2012,7 @@ ALTER TABLE ONLY im_underpass_block
 
 
 --
--- Name: rt_right_fkey_im_building; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_building; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1799,7 +2020,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_building_individual_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_building_individual_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1807,7 +2028,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_parcel; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_parcel; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1815,7 +2036,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_underpass; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_underpass; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1823,7 +2044,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_im_underpass_individual_unit; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_im_underpass_individual_unit; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1831,7 +2052,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_pn_person; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_pn_person; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1839,7 +2060,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_rt_legal_document; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_rt_legal_document; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1847,7 +2068,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: rt_right_fkey_rt_type; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: rt_right_fkey_rt_type; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY rt_right
@@ -1855,7 +2076,7 @@ ALTER TABLE ONLY rt_right
 
 
 --
--- Name: sv_point_fkey_sv_survey_document; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: sv_point_fkey_sv_survey_document; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point
@@ -1863,7 +2084,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: sv_point_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: sv_point_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY sv_point
@@ -1871,7 +2092,7 @@ ALTER TABLE ONLY sv_point
 
 
 --
--- Name: tp_node_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: own; Owner: tdc
+-- Name: tp_node_fkey_sv_survey_point; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
 ALTER TABLE ONLY tp_node

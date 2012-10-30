@@ -28,6 +28,7 @@
 	var identifyLayer;
 	var parcelViewLayer;
 	var buildingViewLayer;
+	var buildingUnitViewLayer;
 var parcelPointViewLayer;
 
 	var foundLayer = false;
@@ -88,17 +89,27 @@ var parcelPointViewLayer;
 		buildingViewLayer = new OpenLayers.Layer.WMS( 
 			"Épület", 
 			urlMap,
-			{ layers:  "building_view", format: 'image/png' , building_nid: null },
+			{ layers:  "building_view", format: 'image/png' , highlighted_building_nid: null },
 			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
 		);
 
-		parcelPointViewLayer = new OpenLayers.Layer.WMS( 
+		buildingUnitViewLayer = new OpenLayers.Layer.WMS( 
+			"Lakások", 
+			urlMap,
+			{ layers:  "building_unit_view", format: 'image/png' , visible_building_levels: '1', highlighted_unit_nid: null },
+			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
+		);
+
+//buildingUnitViewLayer.params.visible_building_levels=1;
+
+
+/*		parcelPointViewLayer = new OpenLayers.Layer.WMS( 
 			"Parcella pontok", 
 			urlMap,
 			{ layers:  "parcel_point_view", format: 'image/png' , building_nid: null },
 			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true'}				
 		);
-
+*/
 		//---------------------------------------------------------------------------------------------
 		// Lekerdezo layerek
 		//
@@ -116,8 +127,10 @@ var parcelPointViewLayer;
 
 		//Fontos a sorrend. A kovetkezo mindig az elozo felett van
 		map.addLayer(identifyLayer);
-		map.addLayer(parcelViewLayer);
+		map.addLayer(parcelViewLayer);		
 		map.addLayer(buildingViewLayer);
+		map.addLayer(buildingUnitViewLayer);
+
 		//map.addLayers([parcelViewLayer, buildingViewLayer, parcelPointViewLayer]);
 
 
@@ -193,13 +206,14 @@ var parcelPointViewLayer;
 
 		var selected_name;
 		var selected_nid;
+		var immovable_type;
 		var layerToQuery = "";
+		var hasSelected = false;
 
 		//Ha kattintottam de az nem objektum volt, akkor törli az összes kijelölést
 		if( objs.length == 0 ){
 			parcelViewLayer.params.parcel_nid =  null;
-			buildingViewLayer.params.building_nid =  null;
-			buildingViewLayer.redraw( true );
+			buildingViewLayer.params.highlighted_building_nid =  null;
 			layerToQuery = ""
 
 		//Különben elvégzi a kijelölést
@@ -209,61 +223,76 @@ var parcelPointViewLayer;
 			//De ehhez előbb fentről lefele meg kell találni a kijelölt objektumot
 			//Például ha egy házra kattintottam és az látható volt a térképen, akkor azt és az azzal kapcsolatos földterületet kell kijelölni
 
+			//Jelzem, hogy meg nem volt kivalasztott elem
+			hasSelected = false;
+
 			//BUILDING - Vegig az osszes "object" elemen 
 			for( i = 0; i< objs.length; i++){
 			
 				selected_name = $(objs[ i ]).attr("selected_name");
 				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;
+				immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
 
-				//Ha ház volt
-				if( selected_name == "building"  && buildingViewLayer.getVisibility() ){
-					buildingViewLayer.params.building_nid =  selected_nid;
+				//Ha ház volt és a layer-en latszik a ház
+				if( selected_name == "im_building"  && buildingViewLayer.getVisibility() ){
+
+					//Akkor a kijelolest allitja
+					buildingViewLayer.params.highlighted_building_nid =  selected_nid;
 					parcelViewLayer.params.parcel_nid =  null;
+
+					//Jelzem, hogy van kivalasztott elem
+					hasSelected = true;
 					break
 				}
 			}//for
 
-			parcelViewLayer.redraw( true );
-			buildingViewLayer.redraw( true );
-
-		}
-
-/*
-		//Vegig az osszes "object" elemen
-		for( i = 0; i< objs.length; i++){
+			//PARCEL - Vegig az osszes "object" elemen 
+			for( i = 0; !hasSelected && i< objs.length; i++){
 			
-			objectName = $(objs[ i ]).attr("name");
-			objectId = $(objs[ i ]).find("id")[0].textContent;
+				selected_name = $(objs[ i ]).attr("selected_name");
+				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;
+				immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
 
-			//Objektum kiemelese
-			if( objectName == "parcel" && parcelViewLayer.getVisibility() ){
-				parcelViewLayer.params.parcel_nid =  objectId;
-				buildingViewLayer.params.building_nid =  null;
-//				parcelViewLayer.redraw( true );
-				layerToQuery = "parcel_query"
-				break;
-			}else if( objectName == "building"  && buildingViewLayer.getVisibility()){
-				buildingViewLayer.params.building_nid =  objectId;
-				buildingViewLayer.params.parcel_nid =  null;
-//				buildingViewLayer.redraw( true );
-				layerToQuery = "building_query"
-				break;
-			}else{
-				parcelViewLayer.params.parcel_nid =  null;
-				buildingViewLayer.params.building_nid =  null;
-//				buildingViewLayer.redraw( true );
-				layerToQuery = ""
-			}
+				//Ha földrészlet volt és látszik a földrészlet (persze ez mindig látszik)
+				if( selected_name == "im_parcel"  && parcelViewLayer.getVisibility() ){
 
-			//Megjelenitem
-			toDiv +=  "Objektum: <b>" + objectName + "</b>   azonosito: <b>" + objectId  + "</b><br>";
+					//Akkor a kijelolest allitja
+					parcelViewLayer.params.parcel_nid =  selected_nid;
+					buildingViewLayer.params.highlighted_building_nid =  null;
+
+					//Ha "1. Foldreszlet" volt
+					if( immovable_type == 1 ){
+
+document.getElementById( "dataDiv" ).innerHTML = "1. Foldreszlet";
+
+					//Ha "2. Foldreszlet hazzal" volt
+					}else if( immovable_type == 2 ){
+
+document.getElementById( "dataDiv" ).innerHTML = "2. Foldreszlet hazzal";
+
+					//Ha "3. Foldreszlet kulonallo hazzal" volt
+					}else if( immovable_type == 3 ){
+
+					//Ha "4. Tarsas haz" volt
+					}else if( immovable_type == 4 ){
+
+					}
+
+					//Jelzem, hogy van kivalasztott elem
+					hasSelected = true;
+					break
+				}
+			}//for
+
 		}
 
 		parcelViewLayer.redraw( true );
 		buildingViewLayer.redraw( true );
-}
-*/
 
+
+
+//var message = $.get("mypage.php");
+//document.getElementById( "dataDiv" ).innerHTML = message;
 
 /*
 		//Megjelenites a dataDiv-ben

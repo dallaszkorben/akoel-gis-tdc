@@ -1,0 +1,889 @@
+SET search_path to topology, public;
+
+--select addtopogeometrycolumn('mytopology', 'public', 'building', 'topo_geom', 'multipolygon');
+--select addtopogeometrycolumn('mytopology', 'public', 'parcel', 'topo_geom', 'multipolygon');
+
+--select totopogeom(the_geom, 'mytopology', 1) from building
+--update parcel set topo_geom=totopogeom(the_geom, 'mytopology', 2);
+--select face_id, st_astext(mbr) from mytopology.face order by st_astext(mbr);
+
+--select * from mytopology.relation order by layer_id, element_id
+
+--select * from test t, points p, test_points tp where tp.test_id=t.id and tp.points_id=p.id
+
+--create view public.test_view as select t.name,  ST_MakePoint(p.x, p.y, p.z) from test t, --test_points tp, points p where tp.test_id=t.id and tp.points_id=p.id;
+
+--select name, st_astext(st_makepoint) from test_view
+--select node_id, st_astext(geom) from mytopology.node;
+
+select face_id, st_astext(mbr) from mytopology.face;
+
+--select GetNodeByPoint('mytopology', 'POINT(645489.24 227905.25)', 0);
+
+CREATE or REPLACE FUNCTION public.getPointNames(parcel_gid integer) RETURNS text AS $$
+DECLARE 
+   output text:= '';
+   mviews RECORD;
+BEGIN  
+  FOR mviews IN SELECT pa.gid, po.name FROM parcel as pa, point as po, point_parcel as p_p, survey_point su where pa.gid=parcel_gid and po.id=p_p.point --and pa.gid=p_p.parcel and po.id=su.point_id LOOP
+     output := mviews.name || output || ', ';
+  END LOOP;
+  RETURN output; 
+END;
+$$ language plpgsql;
+
+--alter table faces add column nodelist  int[] not null
+--create index indx_faces_nodes on faces using GIN ("nodelist")
+
+--set enable_seqscan to off;
+--explain analyze
+--aselect * from faces where nodelist @> array[4]
+
+
+
+
+CREATE or REPLACE FUNCTION mytopology.sv_MoveNode( nid integer, x double precision, y double precision) RETURNS integer AS $$
+DECLARE 
+   output integer;
+BEGIN
+
+   UPDATE node set geom=ST_MakePoint( x, y ) WHERE node.node_id=nid;
+
+   UPDATE edge set geom = ST_MAKELINE() 
+
+   TURN( select node_id from node as n where n.node_id=nid );
+
+  RETURN 13; 
+END;
+$$ language plpgsql;
+
+--select sv_MoveNode(21, 2, 2);
+
+
+
+
+CREATE or REPLACE FUNCTION mytopology.SV_MoveNode( nid integer, x double precision, y double precision) RETURNS integer AS $$
+DECLARE 
+   output integer;
+BEGIN
+
+   UPDATE node set geom=ST_MakePoint( x, y ) WHERE node.node_id=nid;
+
+   --Start point valtoztatasa
+   UPDATE edge_data set geom = ST_MAKELINE( ST_POINT( x, y), ST_ENDPOINT(geom)) WHERE edge_data.start_node=nid;
+
+   --End point valtoztatasa
+   UPDATE edge_data set geom = ST_MAKELINE( ST_STARTPOINT(geom), ST_POINT( x, y) ) WHERE edge_data.end_node=nid;
+
+  RETURN nid;
+END;
+$$ language plpgsql;
+
+node_id=2
+POINT(645499.24 227932.72)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE FUNCTION check_facelist_for_volume_3d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  result boolean;
+  geomtext text = 'POLYHEDRALSURFACE((';
+  position position_3d%rowtype;
+  isfirstnode boolean;
+  isfirstface boolean;
+  actualface bigint;
+  actualnode bigint;
+  ndlist bigint[];
+  face_base text;
+  face_end text;
+  face text;
+  polyhedral_base text;
+  polyhedral text;
+BEGIN
+
+  --Ha modositom, vagy ujat szurok be
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --akkor megnezem, hogy a lista helyes-e. Letezo face-ek szerepelnek-e benne megfelelo szamban
+    select count(1)=array_upper(NEW.facelist,1) INTO result FROM tp_face_3d AS f WHERE ARRAY[f.gid] <@ NEW.facelist;
+
+   --Ha nem megfelelo meretu a lista
+    if( NOT result  ) THEN
+
+        --akkor nem vegrehajthato a muvelet
+        RAISE EXCEPTION 'Nem vegrehajthato a tp_volume_3d INSERT/UPDATE. Rossz a lista: %', NEW.facelist;
+    END IF;
+
+    isfirstface=true;
+    polyhedral_base='';
+
+    --Vegig a face-eken
+    FOREACH actualface IN ARRAY NEW.facelist LOOP
+
+      --A face csomopontjainak osszegyujtese
+      SELECT f.nodelist INTO ndlist FROM tp_face_3d as f WHERE f.gid=actualface;
+
+      --valtozok elokeszitese a face osszeallitasahoz csomopontok alapjan
+      face_base='((';
+      face_end='))';
+      isfirstnode=true;
+
+      --Vegig a face csomopontjain
+      FOREACH actualnode IN ARRAY ndlist LOOP
+
+        --csomopontok koordinatainak kideritese
+        SELECT p.x, p.y, p.z INTO position FROM sv_survey_point AS sp, tp_point_3d AS p, sv_survey_document AS sd, tp_node_3d AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      
+        --Veszem a kovetkezo pontot
+        face_base = face_base || position.x || ' ' || position.y || ' ' || position.z || ',';
+
+        IF isfirstnode THEN
+
+          --Zarnom kell a poligont az elso ponttal
+          face_end = position.x || ' ' || position.y || ' ' || position.z || face_end;
+
+          --jelzem, hogy a kovetkezo pont mar nem az elso lesz
+          isfirstnode=false;
+
+        END IF;
+
+      END LOOP;  --csomopont gyujto ciklus zarasa
+
+      --Itt rendelkezesemre all egy (x1 y1 z1, x2 y2 z2, ... ) formatumu string
+      face = face_base || face_end;
+
+      --Ha ez az elso face
+      IF isfirstface THEN
+
+        --akkor jelzem, hogy a kovetkezo mar nem az elso
+        isfirstface=false;
+
+      --Ha mar volt face
+      ELSE
+
+        --akkor az elejere kell egy vesszo
+        polyhedral_base = polyhedral_base || ', ';
+
+      END IF;
+
+      polyhedral_base = polyhedral_base || face;
+
+    END LOOP;   --face gyujto ciklus zarasa
+
+    polyhedral='POLYHEDRALSURFACE(' || polyhedral_base || ')';
+
+    NEW.geom := public.ST_GeomFromText( polyhedral, -1 );
+   
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_facelist_for_volume_3d_before() OWNER TO tdc;
+
+--
+-- Name: check_nodelist_for_face_2d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_nodelist_for_face_2d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  result boolean;
+  geomtext text = 'POLYGON((';
+  geomtextend text = '))';
+  position position_2d%rowtype;
+  isfirst boolean = true;
+  actualnode bigint;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    select count(1)=array_upper(NEW.nodelist,1) INTO result FROM tp_node_2d AS n WHERE ARRAY[n.gid] <@ NEW.nodelist;
+
+    --Nem megfelelo meretu a lista
+    if( NOT result  ) THEN
+        RAISE EXCEPTION 'Nem vegrehajthato a tp_face_2d INSERT/UPDATE. Rossz a lista: %', NEW.nodelist;
+    END IF;
+   
+    --Vegig a csomopontokon
+    FOREACH actualnode IN ARRAY NEW.nodelist LOOP
+
+      --csomopontok koordinatainak kideritese
+      SELECT p.x, p.y INTO position FROM sv_survey_point AS sp, tp_point_2d AS p, sv_survey_document AS sd, tp_node_2d AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      
+      --Veszem a kovetkezo pontot
+      geomtext = geomtext || position.x || ' ' || position.y || ',';
+
+      IF isfirst THEN
+
+        --Zarnom kell a poligont az elso ponttal
+        geomtextend = position.x || ' ' || position.y || geomtextend;
+
+      END IF;
+
+      isfirst=false;
+
+    END LOOP;
+
+    --Most irom at a geometriat az uj ertekekre
+    geomtext = geomtext || geomtextend;
+
+--RAISE EXCEPTION' %', geomtext;
+    NEW.geom := public.ST_GeomFromText( geomtext, -1 ); 
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_nodelist_for_face_2d_before() OWNER TO tdc;
+
+--
+-- Name: check_nodelist_for_face_3d_after(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_nodelist_for_face_3d_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  volume tp_volume_3d%rowtype;
+  facenumber integer;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    
+    --Csak azert hogy aktivalodjon a tp_volume_3d trigger-e. Azok a volume-k amik tartalmazzak ezt a face-t
+    UPDATE tp_volume_3d AS v set facelist=facelist WHERE ARRAY[NEW.gid] <@ v.facelist;
+
+  ELSIF(TG_OP='DELETE') THEN
+
+    SELECT * INTO volume FROM tp_volume_3d AS v WHERE ARRAY[OLD.gid] <@ v.facelist;
+    IF FOUND THEN
+
+      RAISE EXCEPTION 'Nem törölhetem ki a tp_face_3d.gid: % Face-t mert van legalabb 1 tp_volume_3d.gid: % Volume, ami tartalmazza. Facelist: %', OLD.gid, volume.gid, volume.facelist;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_nodelist_for_face_3d_after() OWNER TO tdc;
+
+--
+-- Name: check_nodelist_for_face_3d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_nodelist_for_face_3d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  result boolean;
+  geomtext text = 'POLYGON((';
+  geomtextend text = '))';
+  position position_3d%rowtype;
+  isfirst boolean = true;
+  actualnode bigint;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    select count(1)=array_upper(NEW.nodelist,1) INTO result FROM tp_node_3d AS n WHERE ARRAY[n.gid] <@ NEW.nodelist;
+
+    --Nem megfelelo meretu a lista
+    if( NOT result  ) THEN
+        RAISE EXCEPTION 'Nem vegrehajthato a tp_face_3d INSERT/UPDATE. Rossz a lista: %', NEW.nodelist;
+    END IF;
+   
+    --Vegig a csomopontokon
+    FOREACH actualnode IN ARRAY NEW.nodelist LOOP
+
+      --csomopontok koordinatainak kideritese
+      SELECT p.x, p.y, p.z INTO position FROM sv_survey_point AS sp, tp_point_3d AS p, sv_survey_document AS sd, tp_node_3d AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      
+      --Veszem a kovetkezo pontot
+      geomtext = geomtext || position.x || ' ' || position.y || ' ' || position.z || ',';
+
+      IF isfirst THEN
+
+        --Zarnom kell a poligont az elso ponttal
+        geomtextend = position.x || ' ' || position.y || ' ' || position.z || geomtextend;
+
+      END IF;
+
+      isfirst=false;
+
+    END LOOP;
+
+    --Most irom at a geometriat az uj ertekekre
+    geomtext = geomtext || geomtextend;
+
+--RAISE EXCEPTION' %', geomtext;
+    NEW.geom := public.ST_GeomFromText( geomtext, -1 ); 
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_nodelist_for_face_3d_before() OWNER TO tdc;
+
+--
+-- Name: check_point_for_node_2d_after(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_point_for_node_2d_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  faces tp_face_2d%rowtype;
+  facenumber integer;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    
+    --Csak azert hogy aktivalodjon a tp_face_2d trigger-e. Azok a face-ek amik tartalmazzak ezt a node-ot
+    UPDATE tp_face_2d AS f set nodelist=nodelist WHERE ARRAY[NEW.gid] <@ f.nodelist;
+
+  ELSIF(TG_OP='DELETE') THEN
+
+    SELECT * INTO faces FROM tp_face_2d AS f WHERE ARRAY[OLD.gid] <@ f.nodelist;
+    IF FOUND THEN
+
+      RAISE EXCEPTION 'Nem törölhetem ki a csomópontot mert van legalabb 1 Face ami tartalmazza. gid: %, nodelist: %', face.gid, faces.nodelist;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_point_for_node_2d_after() OWNER TO tdc;
+
+--
+-- Name: check_point_for_node_2d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_point_for_node_2d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  geomtext text = 'POINT(';
+  geomtextend text = ')';
+  position position_2d%rowtype;
+--  valt tp_point_2d%rowtype;
+BEGIN
+
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --Megnezem az uj tp_node_2d-bez tartozo aktualis pont kooridinatait
+    SELECT p.x, p.y INTO position FROM tp_point_2d AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.sv_survey_point=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+
+--select * into valt from tp_point_2d LIMIT 1;
+
+    --Ha rendben van
+    IF( position.x IS NOT NULL AND position.y IS NOT NULL ) THEN
+      
+      -- akkor a node geometriajat aktualizalja
+      geomtext := geomtext || position.x || ' ' || position.y || geomtextend;
+      NEW.geom := public.ST_GeomFromText( geomtext, -1 );
+    ELSE
+
+      RAISE EXCEPTION 'Nem vegrehajthato muvelet, mert a node-nak nem letezne akkor koordinataja.';
+
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_point_for_node_2d_before() OWNER TO tdc;
+
+--
+-- Name: check_point_for_node_3d_after(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_point_for_node_3d_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  faces tp_face_3d%rowtype;
+  facenumber integer;
+BEGIN
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    
+    --Csak azert hogy aktivalodjon a tp_face_3d trigger-e. Azok a face-ek amik tartalmazzak ezt a node-ot
+    UPDATE tp_face_3d AS f set nodelist=nodelist WHERE ARRAY[NEW.gid] <@ f.nodelist;
+
+  ELSIF(TG_OP='DELETE') THEN
+
+    SELECT * INTO faces FROM tp_face_3d AS f WHERE ARRAY[OLD.gid] <@ f.nodelist;
+    IF FOUND THEN
+
+      RAISE EXCEPTION 'Nem törölhetem ki a csomópontot mert van legalabb 1 Face ami tartalmazza. gid: %, nodelist: %', face.gid, faces.nodelist;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_point_for_node_3d_after() OWNER TO tdc;
+
+--
+-- Name: check_point_for_node_3d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_point_for_node_3d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  geomtext text = 'POINT(';
+  geomtextend text = ')';
+  position position_3d%rowtype;
+--  valt tp_point_3d%rowtype;
+BEGIN
+
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --Megnezem az uj tp_node_3d-bez tartozo aktualis pont kooridinatait
+    SELECT p.x, p.y, p.z INTO position FROM tp_point_3d AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.sv_survey_point=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+
+    --Ha rendben van
+    IF( position.x IS NOT NULL AND position.y IS NOT NULL AND position.z IS NOT NULL) THEN
+      
+      -- akkor a node geometriajat aktualizalja
+      geomtext := geomtext || position.x || ' ' || position.y || ' ' || position.z || geomtextend;
+      NEW.geom := public.ST_GeomFromText( geomtext, -1 );
+    ELSE
+
+      RAISE EXCEPTION 'Nem vegrehajthato muvelet, mert a node-nak nem letezne akkor koordinataja.';
+
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_point_for_node_3d_before() OWNER TO tdc;
+
+--
+-- Name: check_position_for_point_2d_after(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_position_for_point_2d_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  nodegid bigint = NULL;
+  spnid bigint = NULL;
+BEGIN
+
+  --Ha megvaltoztatok torlok vagy beszurok egy tp_point_2d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' OR TG_OP='DELETE' ) THEN
+
+    --Ha ujat rogzitek vagy regit modositok
+    IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+      --Akkor megnezi, hogy az uj-hoz van-e tp_node_2d
+      SELECT n.gid INTO nodegid FROM tp_node_2d AS n, sv_survey_point AS sp, tp_point_2d as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.sv_survey_point;
+
+      --Ha van
+      IF( nodegid IS NOT NULL ) THEN
+
+        --Akkor update-elem, hogy aktivaljam a TRIGGER-et
+        UPDATE tp_node_2d SET sv_survey_point=sv_survey_point WHERE gid=nodegid; 
+  
+      --Nincs
+      ELSE 
+
+        --Megkeresi a ponthoz tartozo survey point-ot
+        SELECT sp.nid INTO spnid FROM sv_survey_point AS sp WHERE sp.nid=NEW.sv_survey_point;
+
+        --Letre hozok egy uj tp_node_2d-t
+        INSERT INTO tp_node_2d (sv_survey_point) VALUES ( spnid );
+
+      END IF;
+
+    END IF;
+
+    --Ha torlok vagy modositok
+    IF(TG_OP='UPDATE' OR TG_OP='DELETE') THEN
+
+      UPDATE tp_node_2d AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.sv_survey_point=sp.nid;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_position_for_point_2d_after() OWNER TO tdc;
+
+--
+-- Name: check_position_for_point_2d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_position_for_point_2d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  pointnid bigint = NULL;
+BEGIN
+
+  --Ha megvaltoztatok vagy beszurok egy tp_point_2d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+
+      --Akkor megnezi, hogy az uj egy 2D-s survey_point-hoz csatlakozik-e
+      SELECT sp.nid INTO pointnid FROM sv_survey_point AS sp WHERE NEW.sv_survey_point=sp.nid AND sp.dimension=3;
+
+      --Ha nem
+      IF( pointnid IS NULL ) THEN
+
+        RAISE EXCEPTION 'Nem vegrehajthato muvelet. A tp_point_2d NEM 2d-s sv_survey_point-hoz csatlakozik';
+        RETURN NULL;
+
+      END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_position_for_point_2d_before() OWNER TO tdc;
+
+--
+-- Name: check_position_for_point_3d_after(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_position_for_point_3d_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  nodegid bigint = NULL;
+  spnid bigint = NULL;
+BEGIN
+
+  --Ha megvaltoztatok torlok vagy beszurok egy tp_point_3d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' OR TG_OP='DELETE' ) THEN
+
+    --Ha ujat rogzitek vagy regit modositok
+    IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+      --Akkor megnezi, hogy az uj-hoz van-e tp_node_3d
+      SELECT n.gid INTO nodegid FROM tp_node_3d AS n, sv_survey_point AS sp, tp_point_3d as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.sv_survey_point;
+
+      --Ha van
+      IF( nodegid IS NOT NULL ) THEN
+
+        --Akkor update-elem, hogy aktivaljam a TRIGGER-et
+        UPDATE tp_node_3d SET sv_survey_point=sv_survey_point WHERE gid=nodegid; 
+  
+      --Nincs
+      ELSE 
+
+        --Megkeresi a ponthoz tartozo survey point-ot
+        SELECT sp.nid INTO spnid FROM sv_survey_point AS sp WHERE sp.nid=NEW.sv_survey_point;
+
+        --Letre hozok egy uj tp_node_3d-t
+        INSERT INTO tp_node_3d (sv_survey_point) VALUES ( spnid );
+
+      END IF;
+
+    END IF;
+
+    --Ha torlok vagy modositok
+    IF(TG_OP='UPDATE' OR TG_OP='DELETE') THEN
+
+      UPDATE tp_node_3d AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.sv_survey_point=sp.nid;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION own.check_position_for_point_3d_after() OWNER TO tdc;
+
+--
+-- Name: check_position_for_point_3d_before(); Type: FUNCTION; Schema: own; Owner: tdc
+--
+
+CREATE FUNCTION check_position_for_point_3d_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  pointnid bigint = NULL;
+BEGIN
+
+  --Ha megvaltoztatok vagy beszurok egy tp_point_3d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+
+      --Akkor megnezi, hogy az uj egy 3D-s survey_point-hoz csatlakozik-e
+      SELECT sp.nid INTO pointnid FROM sv_survey_point AS sp WHERE NEW.sv_survey_point=sp.nid AND sp.dimension=3;
+
+      --Ha nem
+      IF( pointnid IS NULL ) THEN
+
+        RAISE EXCEPTION 'Nem vegrehajthato muvelet. A tp_point_3d NEM 3d-s sv_survey_point-hoz csatlakozik';
+        RETURN NULL;
+
+      END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CREATE TYPE geod_position AS (
+	x double precision,
+	y double precision,
+	h double precision
+);
+
+
+
+CREATE OR REPLACE FUNCTION tp_node_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  geomtext text = 'POINT(';
+  geomtextend text = ')';
+  position geod_position%rowtype;
+BEGIN
+
+  --
+  -- Azt vizsgalom, hogy a megadott NODE ervenyes lehet-e
+  --
+
+  --Uj vagy modositas eseten
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --Megkeresem uj tp_node-boz tartozo datum szerinti legutolso aktualis pont kooridinatait
+    SELECT p.x, p.y, p.h INTO position FROM sv_point AS p, sv_survey_point AS sp, sv_survey_document AS sd WHERE NEW.sv_survey_point=sp.nid AND sp.nid=p.sv_survey_point AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+
+    --Ha rendben van
+    IF( position.x IS NOT NULL AND position.y IS NOT NULL AND position.h IS NOT NULL) THEN
+      
+      -- akkor a node geometriajat aktualizalja
+      geomtext := geomtext || position.x || ' ' || position.y || ' ' || position.h || geomtextend;
+      NEW.geom := public.ST_GeomFromText( geomtext, -1 );
+    ELSE
+
+      RAISE EXCEPTION 'Nem végrehajtható művelet. Ha végrehajtanám a % müveletetet, akkor nem letezne a tp_node-hoz sv_point.', TG_OP;
+
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER tp_node_before_trigger BEFORE INSERT OR UPDATE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_before();
+
+
+ 
+
+CREATE OR replace FUNCTION sv_point_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  nodegid bigint = NULL;
+  spnid bigint = NULL;
+BEGIN
+
+  --
+  -- Ha a sv_point-ban valtozas tortent, akkor a valtozast atvezeti a tp_node-ba.
+  -- Ha az uj sv_point-hoz nem volt meg tp_node, akkor azt letrehozza
+  --
+
+  --Ha megvaltoztatok torlok vagy beszurok egy tp_point_3d-t
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' OR TG_OP='DELETE' ) THEN
+
+    --Ha ujat rogzitek vagy regit modositok
+    IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+      --Akkor megnezi, hogy az uj sv_point-hoz van-e tp_node
+      SELECT n.gid INTO nodegid FROM tp_node AS n, sv_survey_point AS sp, sv_point as p WHERE NEW.nid=p.nid AND p.sv_survey_point=sp.nid AND sp.nid=n.sv_survey_point;
+
+      --Ha van
+      IF( nodegid IS NOT NULL ) THEN
+
+        --Akkor update-elem, hogy aktivaljam a TRIGGER-et
+        UPDATE tp_node SET sv_survey_point=sv_survey_point WHERE gid=nodegid; 
+  
+      --Nincs
+      ELSE 
+
+        --Megkeresi a ponthoz tartozo survey point-ot
+        SELECT sp.nid INTO spnid FROM sv_survey_point AS sp WHERE sp.nid=NEW.sv_survey_point;
+
+        --Letre hozok egy uj tp_node-ot
+        INSERT INTO tp_node (sv_survey_point) VALUES ( spnid );
+
+      END IF;
+
+    END IF;
+
+    --Ha torlok vagy modositok
+    IF(TG_OP='UPDATE' OR TG_OP='DELETE') THEN
+
+      --Akkor frissitem a regi sv_point-hoz tartozo tp_node-ot. Es igy a tp_node triggerei aktivalodnak
+      UPDATE tp_node AS n SET gid=gid from sv_survey_point AS sp WHERE OLD.sv_survey_point=sp.nid AND n.sv_survey_point=sp.nid;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER sv_point_after_trigger AFTER INSERT OR UPDATE OR DELETE ON sv_point FOR EACH ROW EXECUTE PROCEDURE sv_point_after();
+
+
+CREATE or replace FUNCTION tp_facelist_before() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  result boolean;
+  geomtext text = 'POLYGON((';
+  geomtextend text = '))';
+  position geod_position%rowtype;
+  isfirst boolean = true;
+  actualnode bigint;
+BEGIN
+
+  --Ha ujat viszek be, vagy modositok egy regit
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+
+    --Akkor megnezem, hogy a nodelist-ben tarolt csomopontok szama megegyezik-e va valodi kapcsolatok szamaval
+    select count(1)=array_upper(NEW.nodelist,1) INTO result FROM tp_node AS n WHERE ARRAY[n.gid] <@ NEW.nodelist;
+
+    --Nem megfelelo meretu a lista
+    if( NOT result  ) THEN
+        RAISE EXCEPTION 'Nem vegrehajthato a tp_face INSERT/UPDATE. Rossz a lista: %', NEW.nodelist;
+    END IF;
+   
+    --Ha rendben van, akkor vegig megy a csomopontokon
+    FOREACH actualnode IN ARRAY NEW.nodelist LOOP
+
+      --csomopontok koordinatainak kideritese
+      SELECT p.x, p.y, p.h INTO position FROM sv_survey_point AS sp, sv_point AS p, sv_survey_document AS sd, tp_node AS n WHERE n.gid=actualnode AND n.sv_survey_point=sp.nid AND p.sv_survey_point=sp.nid AND p.sv_survey_document=sd.nid AND sd.date<=current_date ORDER BY sd.date DESC LIMIT 1;   
+      
+      --Veszem a kovetkezo pontot
+      geomtext = geomtext || position.x || ' ' || position.y || ' ' || position.h || ',';
+
+      IF isfirst THEN
+
+        --Zarnom kell a poligont az elso ponttal
+        geomtextend = position.x || ' ' || position.y || ' ' || position.h || geomtextend;
+
+      END IF;
+
+      isfirst=false;
+
+    END LOOP;
+
+    --Most irom at a geometriat az uj ertekekre
+    geomtext = geomtext || geomtextend;
+
+    NEW.geom := public.ST_GeomFromText( geomtext, -1 ); 
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--CREATE TRIGGER tp_facelist_before_trigger BEFORE INSERT OR UPDATE ON tp_facepart FOR EACH ROW EXECUTE PROCEDURE tp_facelist_before();
+
+
+
+CREATE or replace FUNCTION tp_node_after() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    AS $$
+DECLARE
+  facepart tp_facepart%rowtype;
+BEGIN
+
+  --
+  -- Update-lem  a tp_facepart-ot hogy aktivalodjon a tirggere es atvezesse a valtozasokat amiket itt vegeztem
+  -- Torlest nem engedek, ha ez a node szerepel a tp_facepart-ban
+  --
+  IF(TG_OP='UPDATE' OR TG_OP='INSERT' ) THEN
+    
+    --Csak azert hogy aktivalodjon a tp_facepart trigger-e. Azok a face-ek amik tartalmazzak ezt a node-ot
+    UPDATE tp_facepart AS f set nodelist=nodelist WHERE ARRAY[NEW.gid] <@ f.nodelist;
+
+  ELSIF(TG_OP='DELETE') THEN
+
+    --Megnezem, hogy a torlendo tp_node szerepel-e a tp_facepart-ban
+    SELECT * INTO facepart FROM tp_facepart AS f WHERE ARRAY[OLD.gid] <@ f.nodelist;
+
+    --Ha igen
+    IF FOUND THEN
+
+      --Akokr nem engedem torolni
+      RAISE EXCEPTION 'Nem törölhetem ki a csomópontot mert van legalabb 1 Face ami tartalmazza. gid: %, nodelist: %', OLD.gid, facepart.nodelist;
+
+    END IF;
+
+  END IF;
+  RETURN NEW;
+END;
+$$;
+--CREATE TRIGGER tp_node_after_trigger BEFORE INSERT OR UPDATE OR DELETE ON tp_node FOR EACH ROW EXECUTE PROCEDURE tp_node_after();
+
+
+
+
+
+
+
