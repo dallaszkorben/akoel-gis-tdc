@@ -40,35 +40,6 @@ MAP
 		"init=epsg:2370"
 	END
 
-	# Start of legend
-#	LEGEND
-#		KEYSIZE 12 12
-#		LABEL
-#			TYPE BITMAP
-#			SIZE MEDIUM
-#			COLOR 0 0 89
-#		END
-#		STATUS OFF
-#	END
-#
-#	SCALEBAR
-#		IMAGECOLOR 255 255 255
-#		LABEL
-#			COLOR 0 0 0
-#			SIZE TINY
-#		END
-#		STYLE 1
-#		SIZE 100 2
-#		COLOR 0 0 0
-#		UNITS MILES
-#		INTERVALS 2
-#		TRANSPARENT FALSE
-#		STATUS OFF
-#	END # Scalebar object ends
-
-
-
-
 	#/////////////////////////////////////////////////////////
 	#/////////////                  //////////////////////////
 	#////////////  PARCEL  ///////////////////////////
@@ -82,21 +53,20 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "parcel_identify"
+		NAME "identify_parcel"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-#		DATA "geom FROM (SELECT 'im_parcel' AS selected_name, p.nid AS selected_nid, f.geom  FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
-		DATA "geom FROM (SELECT * FROM main.parcels_with_data() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
-
+		DATA "geom FROM (SELECT * FROM main.identify_parcel() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
 		PROJECTION
 			"init=epsg:2370"
 		END
+
 		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/identify.html'
+		TEMPLATE 'templates/identify_parcel.html'
 	END #layer
 
 	#_____________________________________
@@ -106,12 +76,11 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "parcel_query"
+		NAME "query_parcel"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
 		DATA "geom FROM (SELECT 'im_parcel' AS selected_name, p.nid AS selected_nid, f.geom  FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
-
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -120,7 +89,7 @@ MAP
 		END
 
 		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/parcel_query.html'
+		#TEMPLATE 'templates/query_parcel.html'
 
 	END #layer
 
@@ -131,12 +100,11 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "parcel_view"
+		NAME "view_parcel"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
 		DATA "geom FROM (SELECT p.nid AS nid, f.geom, main.hrsz_concat(p.hrsz_main, p.hrsz_fraction ) AS hrsz, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid ) AS subquery USING UNIQUE nid USING srid=2370"
-
 		STATUS OFF #DEFAULT
 		TYPE POLYGON
 		TOLERANCE 1
@@ -148,9 +116,6 @@ MAP
 		VALIDATION
 			"parcel_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
-
-
-
 
 		#--------------------------
 		# Kiemelt elemek		
@@ -167,7 +132,6 @@ MAP
 				WIDTH 3
 			END
 		END #class
-
 
 		#--------------------------
 		# Normal elemek		
@@ -203,9 +167,7 @@ MAP
 				END #style
                          END #label
 		END #class
-
 	END #layer
-
 
 	#=================
 	#
@@ -258,17 +220,11 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "building_identify"
+		NAME "identify_building"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-#		DATA "geom FROM 
-#			(SELECT 'building' AS sel_name, b.nid AS sel_nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle 
-#			FROM main.im_building AS b, main.tp_face AS f 
-#			WHERE b.projection=f.gid) 
-#			AS subquery USING UNIQUE sel_nid USING srid=2370"
-		DATA "geom FROM (SELECT 'im_building' AS selected_name, b.nid AS selected_nid, f.geom  FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
-
+		DATA "geom FROM (SELECT * FROM main.identify_building() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -276,7 +232,7 @@ MAP
 			"init=epsg:2370"
 		END
 		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		TEMPLATE 'templates/identify.html'
+		TEMPLATE 'templates/identify_building.html'
 	END #layer
 
 
@@ -287,7 +243,7 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "building_view"
+		NAME "view_building"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
@@ -328,7 +284,7 @@ MAP
 		CLASS
 			NAME "normal"
 			STYLE
-				COLOR 000 000 255
+				COLOR 000 100 255
 			END
 			STYLE
 				OUTLINECOLOR 0 0 0
@@ -361,24 +317,24 @@ MAP
 	END #layer
 
 
-	#/////////////////////////////////////////////////////////
-	#//////////                                             //
-	#////////  TARSASHAZAK UNIT-JAI    ///
-	#///////                                              ////
-	#/////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////                                             ////////
+	#////////  TARSASHAZAK UNIT-JAI    /////////
+	#///////                                              //////////
+	#///////////////////////////////////////////////////////////////
 
 	#_____________________________________
 	#
-	# BUILDING UNIT for IDENTIFY
+	# BUILDING-UNIT for IDENTIFY
 	#
 	#_____________________________________
 
 	LAYER
-		NAME "building_unit_identify"
+		NAME "identify_building_individual_unit"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT 'im_building' AS selected_name, b.nid AS selected_nid, f.geom  FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		DATA "geom FROM (SELECT * FROM main.identify_building_individual_unit() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -387,8 +343,52 @@ MAP
 			"init=epsg:2370"
 		END
 		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-#		TEMPLATE 'templates/identify.html'
+		TEMPLATE 'templates/identify_building_individual_unit.html'
 	END #layer
+
+	#_____________________________________
+	#
+	# BUILDING-UNIT OWNER for QUERY
+	#
+	#_____________________________________
+
+	LAYER
+		NAME "query_building_individual_unit_owner"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.identify_building_individual_unit() d, main.tp_face AS f WHERE d.selected_projection=f.gid AND d.selected_level=%visible_building_level% ) AS subquery  USING UNIQUE selected_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_building_level"  "^[0-9][.][0-9]+$"			#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+		END
+
+		#--------------------------
+		# Normál elemek		
+		#--------------------------
+		CLASS
+			NAME "normal"
+			STYLE
+				COLOR 100 102 0
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+		END #class
+
+		HEADER 'templates/query_building_individual_unit_owner_header.html'
+		TEMPLATE 'templates/query_building_individual_unit_owner.html'
+		FOOTER 'templates/query_building_individual_unit_owner_footer.html'
+
+	END #layer
+
 
 
 	#_____________________________________
@@ -398,26 +398,20 @@ MAP
 	#_____________________________________
 
 	LAYER
-		NAME "building_unit_view"
+		NAME "wiev_building_individual_unit"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-			
-DATA "geom FROM (SELECT unit.nid, face.geom AS geom FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_levels% ) AS subquery USING UNIQUE nid USING srid=2370"
-
-#DATA "geom from (SELECT b.nid, f.geom, CASE (hrsz_eoi IS NULL) WHEN TRUE THEN $$ $$ ELSE hrsz_eoi END AS hrsz_eoi, b.title_angle FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid AND nid=-1) AS subquery USING UNIQUE nid USING srid=2370"
-
+		DATA "geom FROM (SELECT unit.nid AS nid, face.geom AS geom, unitlevel.projection AS selected_projection, 'im_building_individual_unit' AS selected_name, unit.nid AS selected_nid, 4 AS immovable_type FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_level% ) AS subquery USING UNIQUE nid USING srid=2370"
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
-
 		PROJECTION
 			"init=epsg:2370"
 		END
-
 		VALIDATION
-			"visible_building_levels"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
-			"highlighted_unit_nid"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
+			"visible_building_level"  "^[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"highlighted_building_unit_nid"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
 		END
 
 		#--------------------------
@@ -426,12 +420,12 @@ DATA "geom FROM (SELECT unit.nid, face.geom AS geom FROM main.im_building_indivi
 		CLASSITEM "nid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%highlighted_unit_nid%"  
+			EXPRESSION  "%highlighted_building_unit_nid%"  
 			STYLE
-				COLOR 0 75 165
+				COLOR 90 50 0
 			END
 			STYLE
-				OUTLINECOLOR 0 25 61
+				OUTLINECOLOR 45 25 0
 				WIDTH 3
 			END
 		END #class
@@ -442,7 +436,7 @@ DATA "geom FROM (SELECT unit.nid, face.geom AS geom FROM main.im_building_indivi
 		CLASS
 			NAME "normal"
 			STYLE
-				COLOR 000 100 255
+				COLOR 179 102 0
 			END
 			STYLE
 				OUTLINECOLOR 0 0 0
@@ -450,35 +444,6 @@ DATA "geom FROM (SELECT unit.nid, face.geom AS geom FROM main.im_building_indivi
 			END
 		END #class
 	END #layer
-
-
-
-
-	#==========
-	#
-	# ORSZAGHATAR
-	#
-	#==========
-
-#	LAYER
-#		NAME "border"					#layer neve
-#		DATA border
-#		STATUS DEFAULT
-#		TYPE LINE
-#	
-#		FILTER "1=1"
-#		PROJECTION
-#			"init=epsg:2370"
-#		END
-#
-#		CLASS
-#			STYLE
-#				COLOR 0 255 0
-#				WIDTH 1
-#			END
-#		END
-#	END #layer
-
 
 
  # End of LAYER DEFINITIONS -------------------------------

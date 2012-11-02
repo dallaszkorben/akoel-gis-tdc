@@ -25,10 +25,15 @@
 	var map;
 	var popup;
 
-	var identifyLayer;
+	//View layer
 	var parcelViewLayer;
 	var buildingViewLayer;
-	var buildingUnitViewLayer;
+	var buildingIndividualUnitViewLayer;
+
+	//Query layer
+	var identifyLayer;
+	var queryBuildingIndividualUnitOwnerLayer;
+
 var parcelPointViewLayer;
 
 	var foundLayer = false;
@@ -82,25 +87,27 @@ var parcelPointViewLayer;
 		parcelViewLayer = new OpenLayers.Layer.WMS( 
 			"Földrészlet", 
 			urlMap,
-			{ layers:  "parcel_view", format: 'image/png' , parcel_nid: null },
+			{ layers:  "view_parcel", format: 'image/png' , parcel_nid: null },
 			{ isBaseLayer: true, visibility: true, opacity: 1.0, transparent: 'true' }
 		);
 
 		buildingViewLayer = new OpenLayers.Layer.WMS( 
 			"Épület", 
 			urlMap,
-			{ layers:  "building_view", format: 'image/png' , highlighted_building_nid: null },
+			{ layers:  "view_building", format: 'image/png' , highlighted_building_nid: null },
 			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
 		);
 
-		buildingUnitViewLayer = new OpenLayers.Layer.WMS( 
+		buildingIndividualUnitViewLayer = new OpenLayers.Layer.WMS( 
 			"Lakások", 
 			urlMap,
-			{ layers:  "building_unit_view", format: 'image/png' , visible_building_levels: '1', highlighted_unit_nid: null },
+			{ layers:  "wiev_building_individual_unit", format: 'image/png' , visible_building_level: '1.0', highlighted_unit_nid: null },
 			{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
 		);
 
-//buildingUnitViewLayer.params.visible_building_levels=1;
+		//Parameterek a MAP fajlnak, ha WMS layert hasznalok MapServer helyett
+		buildingIndividualUnitViewLayer.params.visible_building_level='1.0';
+
 
 
 /*		parcelPointViewLayer = new OpenLayers.Layer.WMS( 
@@ -120,16 +127,27 @@ var parcelPointViewLayer;
 		identifyLayer = new OpenLayers.Layer.WMS( 
 			"Közös kérés", 
 			urlMap,
-			{ layers:  "parcel_identify,building_identify", format: 'image/png' },
+			{ layers:  "identify_parcel,identify_building,identify_building_individual_unit", format: 'image/png' },
 			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 		);
 
+		queryBuildingIndividualUnitOwnerLayer = new OpenLayers.Layer.WMS( 
+			"query_building_individual_unit_owner", 
+			urlMap,
+			{ layers:  "query_building_individual_unit_owner", format: 'image/png',visible_building_level:'1.0' },
+			{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+		);
+
+		queryBuildingIndividualUnitOwnerLayer.params.visible_building_level='1.0';
 
 		//Fontos a sorrend. A kovetkezo mindig az elozo felett van
 		map.addLayer(identifyLayer);
+		map.addLayer(queryBuildingIndividualUnitOwnerLayer);
+
 		map.addLayer(parcelViewLayer);		
 		map.addLayer(buildingViewLayer);
-		map.addLayer(buildingUnitViewLayer);
+		map.addLayer(buildingIndividualUnitViewLayer);
+
 
 		//map.addLayers([parcelViewLayer, buildingViewLayer, parcelPointViewLayer]);
 
@@ -176,10 +194,8 @@ var parcelPointViewLayer;
 			X: e.xy.x,
 			Y: e.xy.y,
 			INFO_FORMAT: 'text/html',
-				//QUERY_LAYERS:  "building_query_selected,parcel_query_selected",
-				//QUERY_LAYERS:  "building_query,parcel_query", //Azok a layer-ek, amikrol infot akarok
-			QUERY_LAYERS:  "parcel_identify,building_identify", //Azok a layer-ek, amikrol infot akarok
-			FEATURE_COUNT: 1,
+			QUERY_LAYERS:  "identify_parcel,identify_building,identify_building_individual_unit", //Azok a layer-ek, amikrol infot akarok
+			FEATURE_COUNT: 100,
 			WIDTH: map.size.w,
 			HEIGHT: map.size.h });
 			OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ highlightResult(response, e.xy )}});			
@@ -196,17 +212,17 @@ var parcelPointViewLayer;
 
 
 
-	//------------------------------
-	// Kiemelo fuggveny
-	//------------------------------
+	//-------------------------------------------------
+	// Kiemelo fuggveny+azonosítás
+	//-------------------------------------------------
 	function highlightResult(response, xy){
 		var xmlDoc = $.parseXML( "<block>" + response.responseText + "</block>" );
 		var objs = $( $(xmlDoc)[0] ).find("object" );
 		var toDiv = "<html><head></head><body>Kivalasztott elemek<br>"
-
 		var selected_name;
 		var selected_nid;
 		var immovable_type;
+		var building_individual_unit_level;
 		var layerToQuery = "";
 		var hasSelected = false;
 
@@ -218,216 +234,208 @@ var parcelPointViewLayer;
 
 		//Különben elvégzi a kijelölést
 		}else{
+
+			//Ha mar van nyitva popup, akkor azt lezarja
+			if( popup ){
+				map.removePopup(popup);
+			}			
+
 			
 			//Ha a kijelölt objektum más objektummal tulajdoni viszonyban van
 			//De ehhez előbb fentről lefele meg kell találni a kijelölt objektumot
-			//Például ha egy házra kattintottam és az látható volt a térképen, akkor azt és az azzal kapcsolatos földterületet kell kijelölni
+			//Például ha egy házra kattintottam és az látható volt a térképen, akkor azt és az azzal kapcsolatos földterületet kell kijelölni  ???????????
 
 			//Jelzem, hogy meg nem volt kivalasztott elem
 			hasSelected = false;
 
-			//BUILDING - Vegig az osszes "object" elemen 
+			//BUILDING INDIVIDUAL UNIT vizsgálat - lakást választotam-e ki
 			for( i = 0; i< objs.length; i++){
+
+				//Álatlános paraméterek, Ezek már itt is léteznek
+				selected_name = $(objs[ i ]).attr("selected_name");
+				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;				
+
+				//Ha lakás volt és a layer-en latszik a lakás
+				if( selected_name == "im_building_individual_unit"  && buildingIndividualUnitViewLayer.getVisibility()){
+
+					//Ezek specifikus paraméterek, csak itt lehetek biztos benne, hogy léteznek
+					selected_level = $(objs[ i ]).find("selected_level")[0].textContent;
+					selected_settlement = $(objs[ i ]).find("selected_settlement")[0].textContent;
+					selected_hrsz = $(objs[ i ]).find("selected_hrsz")[0].textContent;
+					selected_registered_area = $(objs[ i ]).find("selected_registered_area")[0].textContent;
+					selected_measured_area = $(objs[ i ]).find("selected_measured_area")[0].textContent;
+
+					//Ha  a látható szinten választottam
+					if( buildingIndividualUnitViewLayer.params.visible_building_level == selected_level ){
+
+						//Buborkék előkészítése		
+						var result = "<center>Társasházi lakás</center><br>";
+						result += "Város: <b>" + selected_settlement + "</b><br>";
+						result += "Hrsz: <b>" + selected_hrsz  + "</b><br>";
+						result += "Nyilvántartott terület: <b>" + Math.round(selected_registered_area) + "</b> " + "m2<br>";
+						result += "Mért terület: <b>" + Math.round(selected_measured_area) + "</b> " + "m2<br>";
+	
+						//Eredmeny egy buborekba a kivalasztott ponthoz
+						popup = new OpenLayers.Popup.FramedCloud(
+				                        "chick", 
+				                        map.getLonLatFromPixel( xy ),
+				                        null, //new OpenLayers.Size(100,300),
+				                        result,
+				                        null,
+				                        true,
+				                        null
+				                   );
+
+						//Elhelyezi a buborekot-a terkepen
+						map.addPopup( popup );
+
+						//Owner list query  a kivalasztott objektumrol
+						var getInfo=queryBuildingIndividualUnitOwnerLayer.getFullRequestString({
+							REQUEST: "GetFeatureInfo",
+							EXCEPTIONS: "application/vnd.ogc.se_xml",
+							FORMAT: 'png',
+							BBOX: map.getExtent().toBBOX(),
+							X: xy.x,
+							Y: xy.y,
+							INFO_FORMAT: 'text/html',
+							QUERY_LAYERS: 'query_building_individual_unit_owner',
+							FEATURE_COUNT: 10,
+							WIDTH: map.size.w,
+							HEIGHT: map.size.h });
+
+						OpenLayers.Request.POST({ url: getInfo, callback: function(response){ 
+document.getElementById( "dataDiv" ).innerHTML = response.responseText;
+						}});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 			
+
+//Akkor a kijelolest allitja
+buildingIndividualUnitViewLayer.params.highlighted_building_unit_nid =  selected_nid;
+parcelViewLayer.params.parcel_nid =  null;
+buildingViewLayer.params.highlighted_building_nid =  null;
+
+						//Jelzem, hogy van kivalasztott elem
+						hasSelected = true;
+						break
+					}
+				}
+			}//BUILDING for
+
+
+
+			//BUILDING vizsgálat - Épületet választottam-e ki
+			for( i = 0; !hasSelected && i< objs.length; i++){
+	
 				selected_name = $(objs[ i ]).attr("selected_name");
 				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;
-				immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
+				
 
 				//Ha ház volt és a layer-en latszik a ház
 				if( selected_name == "im_building"  && buildingViewLayer.getVisibility() ){
 
-					//Akkor a kijelolest allitja
-					buildingViewLayer.params.highlighted_building_nid =  selected_nid;
-					parcelViewLayer.params.parcel_nid =  null;
+					immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
+
+					//Ha "1. Foldreszlet" volt
+					if( immovable_type == 1 ){
+
+document.getElementById( "dataDiv" ).innerHTML = "1. Földrészlet";
+
+					//Ha "2. Foldreszlet hazzal" volt
+					}else if( immovable_type == 2 ){
+
+document.getElementById( "dataDiv" ).innerHTML = "2. Földrészlet épülettel együtt";
+
+					//Ha "3. Foldreszlet kulonallo hazzal" volt
+					}else if( immovable_type == 3 ){
+
+document.getElementById( "dataDiv" ).innerHTML = "3. Földrészlet EÖI-ú épülettel ";
+
+					//Ha "4. Tarsas haz" volt
+					}else if( immovable_type == 4 ){
+document.getElementById( "dataDiv" ).innerHTML = "4. Földrészlet társasházi lakásokkal";
+					}
+
+//Akkor a kijelolest allitja
+buildingIndividualUnitViewLayer.params.highlighted_building_unit_nid = null
+parcelViewLayer.params.parcel_nid =  null;
+buildingViewLayer.params.highlighted_building_nid =  selected_nid;
 
 					//Jelzem, hogy van kivalasztott elem
 					hasSelected = true;
 					break
 				}
-			}//for
+			}//BUILDING for
 
-			//PARCEL - Vegig az osszes "object" elemen 
+			//PARCEL vizsgalat - Földrészletet választottam-e ki
 			for( i = 0; !hasSelected && i< objs.length; i++){
 			
 				selected_name = $(objs[ i ]).attr("selected_name");
-				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;
-				immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
+				selected_nid = $(objs[ i ]).find("selected_nid")[0].textContent;				
 
-				//Ha földrészlet volt és látszik a földrészlet (persze ez mindig látszik)
+				//Ha földrészlet volt és látszik a földrészlet (persze ez mindig látszik-de azért mégis vizsgálom)
 				if( selected_name == "im_parcel"  && parcelViewLayer.getVisibility() ){
 
-					//Akkor a kijelolest allitja
-					parcelViewLayer.params.parcel_nid =  selected_nid;
-					buildingViewLayer.params.highlighted_building_nid =  null;
+					immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
+
+//Akkor a kijelolest allitja
+buildingIndividualUnitViewLayer.params.highlighted_building_unit_nid = null
+parcelViewLayer.params.parcel_nid =  selected_nid;
+buildingViewLayer.params.highlighted_building_nid =  null;
 
 					//Ha "1. Foldreszlet" volt
 					if( immovable_type == 1 ){
 
-document.getElementById( "dataDiv" ).innerHTML = "1. Foldreszlet";
+document.getElementById( "dataDiv" ).innerHTML = "1. Földrészlet";
 
 					//Ha "2. Foldreszlet hazzal" volt
 					}else if( immovable_type == 2 ){
 
-document.getElementById( "dataDiv" ).innerHTML = "2. Foldreszlet hazzal";
+document.getElementById( "dataDiv" ).innerHTML = "2. Földrészlet épülettel együtt";
 
 					//Ha "3. Foldreszlet kulonallo hazzal" volt
 					}else if( immovable_type == 3 ){
 
+document.getElementById( "dataDiv" ).innerHTML = "3. Földrészlet EÖI-ú épülettel ";
+
 					//Ha "4. Tarsas haz" volt
 					}else if( immovable_type == 4 ){
-
+document.getElementById( "dataDiv" ).innerHTML = "4. Földrészlet társasházi lakásokkal";
 					}
 
 					//Jelzem, hogy van kivalasztott elem
 					hasSelected = true;
 					break
 				}
-			}//for
+			}//PARCEL for
 
 		}
 
-		parcelViewLayer.redraw( true );
-		buildingViewLayer.redraw( true );
+parcelViewLayer.redraw( true );
+buildingViewLayer.redraw( true );
+buildingIndividualUnitViewLayer.redraw( true );
 
-
-
-//var message = $.get("mypage.php");
-//document.getElementById( "dataDiv" ).innerHTML = message;
-
-/*
-		//Megjelenites a dataDiv-ben
-		toDiv += "</body></html>"
-		document.getElementById( "dataDiv" ).innerHTML = toDiv;
-
-
-
-		//Ha mar van nyitva popup, akkor azt lezarja
-		if( popup ){
-			map.removePopup(popup);
-		}			
-		
-
-		//Query keres a kivalasztott objektumrol
-		var getInfo=queryLayer.getFullRequestString({
-				REQUEST: "GetFeatureInfo",
-				EXCEPTIONS: "application/vnd.ogc.se_xml",
-				FORMAT: 'png',
-				BBOX: map.getExtent().toBBOX(),
-				X: xy.x,
-				Y: xy.y,
-				INFO_FORMAT: 'text/html',
-				QUERY_LAYERS:  layerToQuery, //Ha tobb layert akarok lekerni, akkor vesszovel elvalasztva kell felsorolni
-				FEATURE_COUNT: 1,
-				WIDTH: map.size.w,
-				HEIGHT: map.size.h });
-		OpenLayers.Request.POST({ url: getInfo, callback: function(response){ 
-
-			//Eredmeny egy buborekba a kivalasztott ponthoz
-			popup = new OpenLayers.Popup.FramedCloud(
-	                        "chick", 
-	                        map.getLonLatFromPixel( xy ),
-	                        null, //new OpenLayers.Size(100,300),
-	                        response.responseText,
-	                        null,
-	                        true,
-	                        null
-	                   );
-
-			//Elhelyezi a buborekot-a terkepen
-			map.addPopup( popup );
-		}});
-*/
-
-
-	}
-
-
-
-	//---------------------
-	//Eredmeny kiiras
-	//---------------------	
-	function showResult(response, xy){
-
-		//Eredmeny egy  DIV-be, a térkép alatt
-		//document.getElementById("dataDiv").innerHTML =  response.responseText ;
-
-		var xmlDoc = $.parseXML( "<block>" + response.responseText + "</block>" );
-
-		var objs = $( $(xmlDoc)[0] ).find("object" );
-	
-		var toDiv = "<html><head></head><body>Kivalasztott elemek<br>"
-
-		var objectName;
-		var objectId;
-		var layerToQuery = "";
-
-		//Vegig az osszes "object" elemen
-		for( i = 0; i< objs.length; i++){
-			
-			objectName = $(objs[ i ]).attr("name");
-			objectId = $(objs[ i ]).find("id")[0].textContent;
-
-			toDiv +=  "Objektum: <b>" + objectName + "</b>   azonosito: <b>" + objectId  + "</b><br>";
-
-		}
-
-		//Megjelenites a dataDiv-ben
-		toDiv += "</body></html>"
-		document.getElementById( "dataDiv" ).innerHTML = toDiv;
-
-		//Objektum kiemeles
-		if( objectName == "parcel" ){
-			viewLayer.params.parcel_gid =  objectId;
-			viewLayer.params.building_gid =  null;
-			viewLayer.redraw( true );
-			layerToQuery = "parcel_query"
-		}else if( objectName == "building" ){
-			viewLayer.params.building_gid =  objectId;
-			viewLayer.params.parcel_gid =  null;
-			viewLayer.redraw( true );
-			layerToQuery = "building_query"
-		}else{
-			viewLayer.params.parcel_gid =  null;
-			viewLayer.params.building_gid =  null;
-			viewLayer.redraw( true );
-			layerToQuery = ""
-		}
-
-		//Ha mar van nyitva popup, akkor azt lezarja
-		if( popup ){
-			map.removePopup(popup);
-		}			
-		
-
-		//Query keres a kivalasztott objektumrol
-		var getInfo=queryLayer.getFullRequestString({
-				REQUEST: "GetFeatureInfo",
-				EXCEPTIONS: "application/vnd.ogc.se_xml",
-				FORMAT: 'png',
-				BBOX: map.getExtent().toBBOX(),
-				X: xy.x,
-				Y: xy.y,
-				INFO_FORMAT: 'text/html',
-				QUERY_LAYERS:  layerToQuery, //Ha tobb layert akarok lekerni, akkor vesszovel elvalasztva kell felsorolni
-				FEATURE_COUNT: 1,
-				WIDTH: map.size.w,
-				HEIGHT: map.size.h });
-		OpenLayers.Request.POST({ url: getInfo, callback: function(response){ 
-
-			//Eredmeny egy buborekba a kivalasztott ponthoz
-			popup = new OpenLayers.Popup.FramedCloud(
-	                        "chick", 
-	                        map.getLonLatFromPixel( xy ),
-	                        null, //new OpenLayers.Size(100,300),
-	                        response.responseText,
-	                        null,
-	                        true,
-	                        null
-	                   );
-
-			//Elhelyezi a buborekot-a terkepen
-			map.addPopup( popup );
-		}});
 	}
 
 
