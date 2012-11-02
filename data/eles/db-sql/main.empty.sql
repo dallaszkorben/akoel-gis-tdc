@@ -43,18 +43,64 @@ h double precision
 ALTER TYPE main.geod_position OWNER TO tdc;
 
 --
--- Name: parcel_with_data; Type: TYPE; Schema: main; Owner: tdc
+-- Name: identify_building; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE parcel_with_data AS (
+CREATE TYPE identify_building AS (
 selected_projection bigint,
 selected_name text,
-selected_nid bigint,
-immovable_type integer
+    selected_nid bigint,
+    immovable_type integer
 );
 
 
-ALTER TYPE main.parcel_with_data OWNER TO tdc;
+ALTER TYPE main.identify_building OWNER TO tdc;
+
+--
+-- Name: identify_building_individual_unit; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_building_individual_unit AS (
+    selected_projection bigint,
+    selected_name text,
+    selected_nid bigint,
+    selected_level numeric(4,1),
+    selected_settlement text,
+    selected_hrsz text,
+    selected_registered_area numeric(12,1),
+    selected_measured_area numeric(12,1)
+);
+
+
+ALTER TYPE main.identify_building_individual_unit OWNER TO tdc;
+
+--
+-- Name: identify_parcel; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_parcel AS (
+    selected_projection bigint,
+    selected_name text,
+    selected_nid bigint,
+    immovable_type integer
+);
+
+
+ALTER TYPE main.identify_parcel OWNER TO tdc;
+
+--
+-- Name: immovable_identifier; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE immovable_identifier AS (
+    selected_projection bigint,
+    selected_name text,
+    selected_nid bigint,
+    immovable_type integer
+);
+
+
+ALTER TYPE main.immovable_identifier OWNER TO tdc;
 
 --
 -- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
@@ -62,8 +108,7 @@ ALTER TYPE main.parcel_with_data OWNER TO tdc;
 
 CREATE FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) RETURNS text
     LANGUAGE plpgsql SECURITY DEFINER
-    AS $_$
-DECLARE
+    AS $_$DECLARE
   output text;
 BEGIN
   output := hrsz_main::text||CASE (hrsz_fraction IS NULL) WHEN TRUE THEN $$ $$ ELSE $$/$$ || hrsz_fraction::text END;
@@ -75,14 +120,195 @@ $_$;
 ALTER FUNCTION main.hrsz_concat(hrsz_main integer, hrsz_fraction integer) OWNER TO tdc;
 
 --
--- Name: parcels_with_data(); Type: FUNCTION; Schema: main; Owner: tdc
+-- Name: FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer); Type: COMMENT; Schema: main; Owner: tdc
 --
 
-CREATE FUNCTION parcels_with_data() RETURNS SETOF parcel_with_data
+COMMENT ON FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) IS 'A paraméterként megkapott helyrajzi szám fő értékét és alátörését string-gé alakítja. Azért kell, mert az alátörés lehet NULL is, akkor viszont összehasonlítás esetén nem az igazat adja vissza';
+
+
+--
+-- Name: identify_building(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_building() RETURNS SETOF identify_building
+    LANGUAGE plpgsql
+    AS $$DECLARE
+  object_name text = 'im_building';
+  immovable_type_1 integer = 1;
+  immovable_type_2 integer = 2;
+  immovable_type_3 integer = 3;
+  immovable_type_4 integer = 4;
+  output main.immovable_identifier%rowtype;
+BEGIN
+
+
+  ---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  -- Természetesen ilyen nem lehet, hiszen definició szerint nincs a földrészleten épület :)
+  --
+
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+  FOR output IN
+     SELECT DISTINCT
+      building.projection AS selected_projection,
+      object_name AS selected_name, 
+      building.nid AS selected_nid,
+      immovable_type_2 AS immovable_type
+    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+    WHERE 
+      parcel.nid=r.im_parcel AND 
+      r.rt_type=1 AND
+      building.im_settlement=parcel.im_settlement AND 
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) 
+ LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+
+  ----------------------------------------
+  -- 3. Foldreszlet kulonallo epulettel --
+  ----------------------------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+  --
+  FOR output IN
+    SELECT DISTINCT
+      building.projection AS selected_projection,
+      object_name AS selected_name, 
+      building.nid AS selected_nid,
+      immovable_type_3 AS immovable_type
+    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+    WHERE 
+       parcel.nid=r.im_parcel AND 
+       r.rt_type=1 AND
+       building.im_settlement=parcel.im_settlement AND 
+       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+------------------
+-- 4. Tarsashaz --
+------------------
+--
+-- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+--
+  FOR output IN
+    SELECT DISTINCT
+      building.projection AS selected_projection,
+      object_name AS selected_name, 
+      building.nid AS selected_nid,
+      immovable_type_4 AS immovable_type
+    FROM main.im_parcel parcel, main.im_building building, main.im_building_individual_unit indunit, main.rt_right r
+    WHERE 
+      building.im_settlement=parcel.im_settlement AND 
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+      building.nid=indunit.im_building AND
+      indunit.nid=r.im_building_individual_unit AND
+      r.rt_type=1 LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.identify_building() OWNER TO tdc;
+
+--
+-- Name: FUNCTION identify_building(); Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON FUNCTION identify_building() IS 'Visszaadja az összes ingatlan típusba tartozó épület adatait a következő formátumban:
+selected_projection => az épület vetületét ábrázoló polygon azonosítója a tp_face táblában
+selected_name       => "im_building"
+selected_id         => Az épület nid azonosítója (im_building táblában)
+immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott épület milyen kapcsolatban áll a földrészlettel';
+
+
+--
+-- Name: identify_building_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_building_individual_unit() RETURNS SETOF identify_building_individual_unit
     LANGUAGE plpgsql
     AS $$
 DECLARE
-  output main.parcel_with_data%rowtype;
+  object_name text = 'im_building_individual_unit';
+  output main.identify_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      indunitlevel.projection AS selected_projection,
+      object_name AS selected_name, 
+      indunit.nid AS selected_nid,
+      indunitlevel.im_levels AS selected_level,
+      building.im_settlement AS selected_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)||'/'||building.hrsz_eoi||'/'||indunit.hrsz_unit AS selected_hrsz,
+      summary.sum_registered_area AS selected_registered_area,
+      summary.sum_measured_area AS selected_measured_area
+    FROM 
+      main.im_building building, 
+      main.im_building_individual_unit indunit, 
+      main.im_building_individual_unit_level indunitlevel,
+      (SELECT
+        indunit.im_building im_building, 
+        indunit.hrsz_unit hrsz_unit, 
+        sum(st_area(face.geom)) sum_measured_area, 
+        sum(unitlevel.area) sum_registered_area 
+      FROM 
+        main.im_building_individual_unit_level unitlevel, 
+        main.im_building_individual_unit indunit,
+        main.tp_face face
+      WHERE 
+        unitlevel.im_building=indunit.im_building AND
+        unitlevel.hrsz_unit=indunit.hrsz_unit AND
+        unitlevel.projection=face.gid
+      GROUP BY indunit.im_building, indunit.hrsz_unit
+      ) as summary
+    WHERE
+      summary.im_building=indunit.im_building AND
+      summary.hrsz_unit=indunit.hrsz_unit AND
+      building.nid=indunit.im_building AND
+      indunit.im_building=indunitlevel.im_building AND
+      indunit.hrsz_unit=indunitlevel.hrsz_unit LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.identify_building_individual_unit() OWNER TO tdc;
+
+--
+-- Name: identify_parcel(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_parcel() RETURNS SETOF identify_parcel
+    LANGUAGE plpgsql
+    AS $$DECLARE
+  object_name text = 'im_parcel';
+  immovable_type_1 integer = 1;
+  immovable_type_2 integer = 2;
+  immovable_type_3 integer = 3;
+  immovable_type_4 integer = 4;
+  output main.immovable_identifier%rowtype;
 BEGIN
 
 
@@ -95,9 +321,9 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       parcel.projection AS selected_projection,
-      'im_parcel' AS selected_name, 
+      object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      1 AS immovable_type
+      immovable_type_1 AS immovable_type
     FROM 
       main.im_parcel parcel, 
       main.rt_right r
@@ -118,9 +344,9 @@ BEGIN
   FOR output IN
      SELECT DISTINCT
       parcel.projection AS selected_projection,
-      'im_parcel' AS selected_name, 
+      object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      2 AS immovable_type
+      immovable_type_2 AS immovable_type
     FROM main.im_parcel parcel, main.rt_right r, main.im_building building
     WHERE 
       parcel.nid=r.im_parcel AND 
@@ -132,12 +358,68 @@ BEGIN
   END LOOP;
 
 
+  ----------------------------------------
+  -- 3. Foldreszlet kulonallo epulettel --
+  ----------------------------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+  --
+  FOR output IN
+    SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      object_name AS selected_name, 
+      parcel.nid AS selected_nid,
+      immovable_type_3 AS immovable_type
+    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+    WHERE 
+       parcel.nid=r.im_parcel AND 
+       r.rt_type=1 AND
+       building.im_settlement=parcel.im_settlement AND 
+       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+------------------
+-- 4. Tarsashaz --
+------------------
+--
+-- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+--
+  FOR output IN
+    SELECT DISTINCT
+      parcel.projection AS selected_projection,
+      object_name AS selected_name, 
+      parcel.nid AS selected_nid,
+      immovable_type_4 AS immovable_type
+    FROM main.im_parcel parcel, main.im_building building, main.im_building_individual_unit indunit, main.rt_right r
+    WHERE 
+      building.im_settlement=parcel.im_settlement AND 
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+      building.nid=indunit.im_building AND
+      indunit.nid=r.im_building_individual_unit AND
+      r.rt_type=1 LOOP
+    RETURN NEXT output;
+  END LOOP;
+
   RETURN;
 END;
+
 $$;
 
 
-ALTER FUNCTION main.parcels_with_data() OWNER TO tdc;
+ALTER FUNCTION main.identify_parcel() OWNER TO tdc;
+
+--
+-- Name: FUNCTION identify_parcel(); Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON FUNCTION identify_parcel() IS 'Visszaadja az összes ingatlan típusba tartozó földrészlet adatait a következő formátumban:
+selected_projection => a földrészlet vetületét ábrázoló polygon azonosítója a tp_face táblában
+selected_name       => "im_parcel"
+selected_id         => A földrészlet nid azonosítója (im_parcel táblában)
+immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott földrészleten van-e épület és az milyen kapcsolatban áll a földrészlettel';
+
 
 --
 -- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
@@ -670,7 +952,8 @@ COMMENT ON TABLE im_building IS 'Az épületeket reprezentáló tábla';
 CREATE TABLE im_building_individual_unit (
     nid bigint NOT NULL,
     im_building bigint NOT NULL,
-    hrsz_unit integer NOT NULL
+    hrsz_unit integer NOT NULL,
+    model bigint
 );
 
 
@@ -691,9 +974,9 @@ CREATE TABLE im_building_individual_unit_level (
     im_building bigint NOT NULL,
     hrsz_unit integer NOT NULL,
     projection bigint,
-    im_levels bigint NOT NULL,
-    area integer,
-    volume integer
+    im_levels numeric(4,2) NOT NULL,
+    area numeric(12,1),
+    volume numeric(12,1)
 );
 
 
@@ -734,8 +1017,8 @@ ALTER SEQUENCE im_building_individual_unit_nid_seq OWNED BY im_building_individu
 CREATE TABLE im_building_level_unit (
     im_building bigint NOT NULL,
     im_levels bigint NOT NULL,
-    area integer,
-    volume integer,
+    area numeric(12,1),
+    volume numeric(12,1),
     model bigint
 );
 
@@ -816,7 +1099,8 @@ ALTER SEQUENCE im_building_nid_seq OWNED BY im_building.nid;
 
 CREATE TABLE im_building_shared_unit (
     im_building bigint NOT NULL,
-    name text NOT NULL
+    name text NOT NULL,
+    model bigint
 );
 
 
@@ -835,7 +1119,7 @@ COMMENT ON TABLE im_building_shared_unit IS 'A társasházak közös helyiségei
 
 CREATE TABLE im_levels (
     name text NOT NULL,
-    nid bigint NOT NULL
+    nid numeric(4,1) NOT NULL
 );
 
 
@@ -875,7 +1159,7 @@ ALTER SEQUENCE im_levels_nid_seq OWNED BY im_levels.nid;
 
 CREATE TABLE im_parcel (
     nid bigint NOT NULL,
-    area integer NOT NULL,
+    area numeric(12,1) NOT NULL,
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
     hrsz_fraction integer,
@@ -927,7 +1211,8 @@ COMMENT ON TABLE im_settlement IS 'Magyarorszag településeinek neve';
 CREATE TABLE im_shared_unit_level (
     im_building bigint NOT NULL,
     im_levels text NOT NULL,
-    shared_unit_name text NOT NULL
+    shared_unit_name text NOT NULL,
+    projection bigint
 );
 
 
@@ -995,8 +1280,8 @@ CREATE TABLE im_underpass_individual_unit (
     nid bigint NOT NULL,
     im_underpass_block bigint NOT NULL,
     hrsz_unit integer NOT NULL,
-    area integer,
-    volume integer
+    area numeric(12,1),
+    volume numeric(12,1)
 );
 
 
@@ -1008,6 +1293,31 @@ ALTER TABLE main.im_underpass_individual_unit OWNER TO tdc;
 
 COMMENT ON TABLE im_underpass_individual_unit IS 'Ezek az ingatlantípusok az aluljárókban lévő üzletek. 
 EÖI';
+
+
+SET default_with_oids = true;
+
+--
+-- Name: im_underpass_individual_unit_level; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE TABLE im_underpass_individual_unit_level (
+    im_underpass_block bigint NOT NULL,
+    hrsz_unit integer NOT NULL,
+    im_levels numeric(4,1) NOT NULL,
+    area integer,
+    volume integer,
+    projection bigint
+);
+
+
+ALTER TABLE main.im_underpass_individual_unit_level OWNER TO tdc;
+
+--
+-- Name: TABLE im_underpass_individual_unit_level; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON TABLE im_underpass_individual_unit_level IS 'Aluljárókban található üzlethelyiségek egy szintjét reprezentálja (mivel egy üzlet akár több szinten is elhelyezkedhet)';
 
 
 --
@@ -1029,6 +1339,28 @@ ALTER TABLE main.im_underpass_individual_unit_nid_seq OWNER TO tdc;
 --
 
 ALTER SEQUENCE im_underpass_individual_unit_nid_seq OWNED BY im_underpass_individual_unit.nid;
+
+
+SET default_with_oids = false;
+
+--
+-- Name: im_underpass_levels; Type: TABLE; Schema: main; Owner: tdc; Tablespace: 
+--
+
+CREATE TABLE im_underpass_levels (
+    im_underpass_block bigint NOT NULL,
+    im_levels numeric(4,1) NOT NULL,
+    projection bigint
+);
+
+
+ALTER TABLE main.im_underpass_levels OWNER TO tdc;
+
+--
+-- Name: TABLE im_underpass_levels; Type: COMMENT; Schema: main; Owner: tdc
+--
+
+COMMENT ON TABLE im_underpass_levels IS 'Egy adott aluljáróban előforduló szintek felsorolása';
 
 
 --
@@ -1432,13 +1764,6 @@ ALTER TABLE ONLY im_building_individual_unit ALTER COLUMN nid SET DEFAULT nextva
 -- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
 --
 
-ALTER TABLE ONLY im_levels ALTER COLUMN nid SET DEFAULT nextval('im_levels_nid_seq'::regclass);
-
-
---
--- Name: nid; Type: DEFAULT; Schema: main; Owner: tdc
---
-
 ALTER TABLE ONLY im_underpass_individual_unit ALTER COLUMN nid SET DEFAULT nextval('im_underpass_individual_unit_nid_seq'::regclass);
 
 
@@ -1622,6 +1947,14 @@ ALTER TABLE ONLY im_shared_unit_level
 
 
 --
+-- Name: im_underpass_individual_unit_level_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_underpass_individual_unit_level
+    ADD CONSTRAINT im_underpass_individual_unit_level_pkey PRIMARY KEY (im_underpass_block);
+
+
+--
 -- Name: im_underpass_individual_unit_pkey; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
@@ -1635,6 +1968,14 @@ ALTER TABLE ONLY im_underpass_individual_unit
 
 ALTER TABLE ONLY im_underpass_individual_unit
     ADD CONSTRAINT im_underpass_individual_unit_unique_im_underpass_unit_hrsz_unit UNIQUE (im_underpass_block, hrsz_unit);
+
+
+--
+-- Name: im_underpass_levels_pkey_im_underpass_block_im_levels; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY im_underpass_levels
+    ADD CONSTRAINT im_underpass_levels_pkey_im_underpass_block_im_levels PRIMARY KEY (im_underpass_block, im_levels);
 
 
 --
@@ -1908,6 +2249,14 @@ ALTER TABLE ONLY im_building_individual_unit
 
 
 --
+-- Name: im_building_individual_unit_fkey_model; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_individual_unit
+    ADD CONSTRAINT im_building_individual_unit_fkey_model FOREIGN KEY (model) REFERENCES tp_volume(gid);
+
+
+--
 -- Name: im_building_individual_unit_level_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
 --
 
@@ -1993,6 +2342,38 @@ ALTER TABLE ONLY im_underpass
 
 ALTER TABLE ONLY im_underpass_individual_unit
     ADD CONSTRAINT im_underpass_individual_unit_fkey_im_underpass_unit FOREIGN KEY (im_underpass_block) REFERENCES im_underpass_block(nid);
+
+
+--
+-- Name: im_underpass_individual_unit_level_fkey_im_underpass_leveles; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_underpass_individual_unit_level
+    ADD CONSTRAINT im_underpass_individual_unit_level_fkey_im_underpass_leveles FOREIGN KEY (im_underpass_block, im_levels) REFERENCES im_underpass_levels(im_underpass_block, im_levels);
+
+
+--
+-- Name: im_underpass_individual_unit_level_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_underpass_individual_unit_level
+    ADD CONSTRAINT im_underpass_individual_unit_level_fkey_projection FOREIGN KEY (projection) REFERENCES tp_face(gid);
+
+
+--
+-- Name: im_underpass_levels_fkey_im_underpass_block; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_underpass_levels
+    ADD CONSTRAINT im_underpass_levels_fkey_im_underpass_block FOREIGN KEY (im_underpass_block) REFERENCES im_underpass_block(nid);
+
+
+--
+-- Name: im_underpass_levels_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_underpass_levels
+    ADD CONSTRAINT im_underpass_levels_fkey_projection FOREIGN KEY (projection) REFERENCES tp_face(gid);
 
 
 --
