@@ -34,9 +34,9 @@ SET search_path = main, pg_catalog;
 --
 
 CREATE TYPE geod_position AS (
-x double precision,
-y double precision,
-h double precision
+	x double precision,
+	y double precision,
+	h double precision
 );
 
 
@@ -47,10 +47,10 @@ ALTER TYPE main.geod_position OWNER TO tdc;
 --
 
 CREATE TYPE identify_building AS (
-selected_projection bigint,
-selected_name text,
-    selected_nid bigint,
-    immovable_type integer
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	immovable_type integer
 );
 
 
@@ -61,14 +61,14 @@ ALTER TYPE main.identify_building OWNER TO tdc;
 --
 
 CREATE TYPE identify_building_individual_unit AS (
-    selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    selected_level numeric(4,1),
-    selected_settlement text,
-    selected_hrsz text,
-    selected_registered_area numeric(12,1),
-    selected_measured_area numeric(12,1)
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	selected_level numeric(4,1),
+	selected_settlement text,
+	selected_hrsz text,
+	selected_registered_area numeric(12,1),
+	selected_measured_area numeric(12,1)
 );
 
 
@@ -79,28 +79,67 @@ ALTER TYPE main.identify_building_individual_unit OWNER TO tdc;
 --
 
 CREATE TYPE identify_parcel AS (
-    selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    immovable_type integer
+	immovable_type integer,
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	selected_settlement text,
+	selected_hrsz text,
+	selected_registered_area numeric(12,1),
+	selected_measured_area numeric(12,1)
 );
 
 
 ALTER TYPE main.identify_parcel OWNER TO tdc;
 
 --
--- Name: immovable_identifier; Type: TYPE; Schema: main; Owner: tdc
+-- Name: query_owner_building_individual_unit; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE immovable_identifier AS (
-    selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    immovable_type integer
+CREATE TYPE query_owner_building_individual_unit AS (
+	found_projection bigint,
+	found_unit bigint,
+	found_unit_level numeric(4,1),
+	owner_name text,
+	owner_share text,
+	owner_contract_date date
 );
 
 
-ALTER TYPE main.immovable_identifier OWNER TO tdc;
+ALTER TYPE main.query_owner_building_individual_unit OWNER TO tdc;
+
+--
+-- Name: query_owner_parcel; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE query_owner_parcel AS (
+	found_projection bigint,
+	found_parcel bigint,
+	owner_name text,
+	owner_share text,
+	owner_contract_date date
+);
+
+
+ALTER TYPE main.query_owner_parcel OWNER TO tdc;
+
+--
+-- Name: query_point; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE query_point AS (
+	found_projection bigint,
+	point_name text,
+	point_description text,
+	point_quality integer,
+	point_measured_date date,
+	point_x numeric(8,2),
+	point_y numeric(8,2),
+	point_h numeric(8,2)
+);
+
+
+ALTER TYPE main.query_point OWNER TO tdc;
 
 --
 -- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
@@ -132,13 +171,14 @@ COMMENT ON FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) IS 'A 
 
 CREATE FUNCTION identify_building() RETURNS SETOF identify_building
     LANGUAGE plpgsql
-    AS $$DECLARE
+    AS $$
+DECLARE
   object_name text = 'im_building';
   immovable_type_1 integer = 1;
   immovable_type_2 integer = 2;
   immovable_type_3 integer = 3;
   immovable_type_4 integer = 4;
-  output main.immovable_identifier%rowtype;
+  output main.identify_building%rowtype;
 BEGIN
 
 
@@ -302,13 +342,14 @@ ALTER FUNCTION main.identify_building_individual_unit() OWNER TO tdc;
 
 CREATE FUNCTION identify_parcel() RETURNS SETOF identify_parcel
     LANGUAGE plpgsql
-    AS $$DECLARE
+    AS $$
+DECLARE
   object_name text = 'im_parcel';
   immovable_type_1 integer = 1;
   immovable_type_2 integer = 2;
   immovable_type_3 integer = 3;
   immovable_type_4 integer = 4;
-  output main.immovable_identifier%rowtype;
+  output main.identify_parcel%rowtype;
 BEGIN
 
 
@@ -320,17 +361,24 @@ BEGIN
   --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_1 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_1 AS immovable_type
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
     FROM 
       main.im_parcel parcel, 
-      main.rt_right r
+      main.rt_right r,
+      main.tp_face face
     WHERE 
        parcel.nid=r.im_parcel AND      
-       r.rt_type=1 AND
-       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) LOOP
+       r.rt_type=1 AND 
+       face.gid=parcel.projection AND
+       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -343,17 +391,27 @@ BEGIN
   --
   FOR output IN
      SELECT DISTINCT
+      immovable_type_2 AS immovable_type,
       parcel.projection AS selected_projection,
-      object_name AS selected_name, 
-      parcel.nid AS selected_nid,
-      immovable_type_2 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+      object_name AS selected_name,
+      parcel.nid AS selected_nid,      
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r, 
+      main.im_building building,
+      main.tp_face face
     WHERE 
       parcel.nid=r.im_parcel AND 
+      face.gid=parcel.projection AND
       r.rt_type=1 AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
-      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) LOOP
+      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -366,17 +424,28 @@ BEGIN
   --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_3 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_3 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r, 
+      main.im_building building,
+      main.tp_face face
     WHERE 
        parcel.nid=r.im_parcel AND 
+       face.gid=parcel.projection AND
        r.rt_type=1 AND
        building.im_settlement=parcel.im_settlement AND 
        main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
-       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) LOOP
+       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -388,23 +457,33 @@ BEGIN
 --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_4 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_4 AS immovable_type
-    FROM main.im_parcel parcel, main.im_building building, main.im_building_individual_unit indunit, main.rt_right r
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.im_building building, 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.tp_face face
     WHERE 
+      face.gid=parcel.projection AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
       building.nid=indunit.im_building AND
       indunit.nid=r.im_building_individual_unit AND
-      r.rt_type=1 LOOP
+      r.rt_type=1 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
   RETURN;
-END;
-
+END; 
 $$;
 
 
@@ -420,6 +499,336 @@ selected_name       => "im_parcel"
 selected_id         => A földrészlet nid azonosítója (im_parcel táblában)
 immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott földrészleten van-e épület és az milyen kapcsolatban áll a földrészlettel';
 
+
+--
+-- Name: query_owner_building_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_building_individual_unit() RETURNS SETOF query_owner_building_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  object_name text = 'im_building_individual_unit';
+  output main.query_owner_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      indunit.nid AS found_unit,
+      unitlevel.im_levels AS found_unit_level,
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_building_individual_unit_level unitlevel
+    WHERE
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_building_individual_unit=indunit.nid AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_building_individual_unit() OWNER TO tdc;
+
+--
+-- Name: query_owner_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) RETURNS SETOF query_owner_building_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  object_name text = 'im_building_individual_unit';
+  output main.query_owner_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      indunit.nid AS found_unit,
+      unitlevel.im_levels AS found_unit_level,
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_building_individual_unit_level unitlevel
+    WHERE
+      selected_individual_unit=indunit.nid AND
+      visible_building_level = unitlevel.im_levels AND
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_building_individual_unit=indunit.nid AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) OWNER TO tdc;
+
+--
+-- Name: query_owner_parcel(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_parcel(immovable_type integer, selected_parcel bigint) RETURNS SETOF query_owner_parcel
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_owner_parcel%rowtype;
+BEGIN
+
+
+  ---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+
+  ----------------------------------------
+  -- 3. Foldreszlet kulonallo epulettel --
+  ----------------------------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+  --
+  IF( immovable_type = 1 OR immovable_type = 2 OR immovable_type = 3 ) THEN
+    
+    FOR output IN
+
+      SELECT DISTINCT
+        parcel.projection AS selected_projection,      
+        parcel.nid AS selected_nid,
+        person.name AS owner_name,
+        r.share_numerator||'/'||r.share_denominator AS owner_share,
+        document.date AS owner_contract_date
+      FROM 
+        main.im_parcel parcel, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person,
+        main.tp_face face
+      WHERE 
+        parcel.nid=selected_parcel AND
+        parcel.nid=r.im_parcel AND      
+        r.rt_type=1 AND 
+        r.pn_person=person.nid AND
+        r.rt_legal_document=document.nid
+
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+
+  ------------------
+  -- 4. Tarsashaz --
+  ------------------
+  --
+  -- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+  --
+  ELSIF ( immovable_type = 4 ) THEN
+
+    FOR output IN
+
+      SELECT DISTINCT
+        parcel.projection AS selected_projection,      
+        parcel.nid AS selected_nid,
+        person.name AS owner_name,
+        indunit.share_numerator||'/'||building.share_denominator||' ('||r.share_numerator||'/'||r.share_denominator||')' AS owner_share,
+        document.date AS owner_contract_date,
+        indunit.hrsz_unit  
+      FROM
+        main.im_parcel parcel,
+        main.im_building building,
+        main.im_building_individual_unit indunit, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person
+    WHERE
+        parcel.nid=selected_parcel AND
+        building.im_settlement=parcel.im_settlement AND
+        main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+        building.nid=indunit.im_building AND
+        r.rt_legal_document=document.nid AND
+        r.pn_person=person.nid AND
+        r.im_building_individual_unit=indunit.nid
+    ORDER BY indunit.hrsz_unit
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+  END IF;
+
+  RETURN;
+END; 
+$$;
+
+
+ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_parcel bigint) OWNER TO tdc;
+
+--
+-- Name: query_point_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_point_building_individual_unit(selected_individual_unit_nid bigint, visible_building_level numeric) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.im_building_individual_unit_level unitlevel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      indunit.nid=selected_individual_unit_nid AND
+      unitlevel.im_levels=visible_building_level AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+$$;
+
+
+ALTER FUNCTION main.query_point_building_individual_unit(selected_individual_unit_nid bigint, visible_building_level numeric) OWNER TO tdc;
+
+--
+-- Name: query_point_parcel(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_point_parcel(selected_parcel bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      parcel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_parcel parcel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_parcel=parcel.nid AND
+      parcel.projection=face.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_point_parcel(selected_parcel bigint) OWNER TO tdc;
 
 --
 -- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
@@ -932,7 +1341,8 @@ CREATE TABLE im_building (
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
     hrsz_fraction integer,
-    title_angle numeric(4,2)
+    title_angle numeric(4,2),
+    share_denominator integer
 );
 
 
@@ -953,7 +1363,8 @@ CREATE TABLE im_building_individual_unit (
     nid bigint NOT NULL,
     im_building bigint NOT NULL,
     hrsz_unit integer NOT NULL,
-    model bigint
+    model bigint,
+    share_numerator integer NOT NULL
 );
 
 
@@ -2483,4 +2894,5 @@ ALTER TABLE ONLY tp_node
 --
 -- PostgreSQL database dump complete
 --
+
 

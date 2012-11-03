@@ -41,16 +41,18 @@ MAP
 	END
 
 	#/////////////////////////////////////////////////////////
+	#/////////////////////////////////////////////////////////
 	#/////////////                  //////////////////////////
 	#////////////  PARCEL  ///////////////////////////
 	#///////////                  ////////////////////////////
 	#/////////////////////////////////////////////////////////
+	#/////////////////////////////////////////////////////////
 
-	#_____________________________________
-	#
-	# PARCEL POLYGON for IDENTIFY
-	#
-	#_____________________________________
+	########################
+	######                                 #####
+	#####        IDENTIFY        ######
+	####                                 ######
+	######################
 
 	LAYER
 		NAME "identify_parcel"
@@ -69,35 +71,69 @@ MAP
 		TEMPLATE 'templates/identify_parcel.html'
 	END #layer
 
-	#_____________________________________
-	#
-	# PARCEL POLYGON for QUERY
-	#
-	#_____________________________________
+	########################
+	######                                 #####
+	#####  QUERY OWNER    ######
+	####                                 ######
+	######################
 
 	LAYER
-		NAME "query_parcel"
+		NAME "query_owner_parcel"
 
 		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "geom FROM (SELECT 'im_parcel' AS selected_name, p.nid AS selected_nid, f.geom  FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_owner_parcel( %immovable_type%,  %selected_parcel% ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE found_parcel USING srid=2370"
+
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
 		PROJECTION
 			"init=epsg:2370"
 		END
+		VALIDATION
+			"selected_parcel"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+			"immovable_type" "^[0-9]+$"		#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
+		END
 
-		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
-		#TEMPLATE 'templates/query_parcel.html'
+		HEADER 'templates/query_owner_parcel_header.html'
+		TEMPLATE 'templates/query_owner_parcel.html'
+		FOOTER 'templates/query_owner_parcel_footer.html'
 
 	END #layer
 
-	#_____________________________________
-	#
-	# PARCEL POLYGON for VIEW
-	#
-	#_____________________________________
+	########################
+	######                                 #####
+	#####  QUERY POINTS    ######
+	####                                 ######
+	######################
+	LAYER
+		NAME "query_point_parcel"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_point_parcel(%selected_parcel%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE point_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"selected_parcel"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+		END
+
+		HEADER 'templates/query_point_parcel_header.html'
+		TEMPLATE 'templates/query_point_parcel.html'
+		FOOTER 'templates/query_point_parcel_footer.html'
+
+	END #layer
+
+	#########################
+	########                           ######
+	#######     VIEW           #######
+	######                           #######
+	######################
 
 	LAYER
 		NAME "view_parcel"
@@ -114,7 +150,7 @@ MAP
 		END
 
 		VALIDATION
-			"parcel_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"selected_parcel_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
 		#--------------------------
@@ -123,7 +159,7 @@ MAP
 		CLASSITEM "nid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%parcel_nid%"  
+			EXPRESSION  "%selected_parcel_nid%"  
 			STYLE
 				COLOR 80 150 80
 			END
@@ -259,7 +295,7 @@ MAP
 		END
 
 		VALIDATION
-			"highlighted_building_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"selected_building_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
 		#--------------------------
@@ -268,7 +304,7 @@ MAP
 		CLASSITEM "nid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%highlighted_building_nid%"  
+			EXPRESSION  "%selected_building_nid%"  
 			STYLE
 				COLOR 80 80 150
 			END
@@ -316,18 +352,20 @@ MAP
 
 	END #layer
 
-
+	#///////////////////////////////////////////////////////////////
 	#///////////////////////////////////////////////////////////////
 	#//////////                                             ////////
 	#////////  TARSASHAZAK UNIT-JAI    /////////
 	#///////                                              //////////
 	#///////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////
 
-	#_____________________________________
-	#
-	# BUILDING-UNIT for IDENTIFY
-	#
-	#_____________________________________
+
+	#########################
+	########                           ######
+	#######     IDENTIFY     #######
+	######                           #######
+	######################
 
 	LAYER
 		NAME "identify_building_individual_unit"
@@ -346,18 +384,18 @@ MAP
 		TEMPLATE 'templates/identify_building_individual_unit.html'
 	END #layer
 
-	#_____________________________________
-	#
-	# BUILDING-UNIT OWNER for QUERY
-	#
-	#_____________________________________
+	########################
+	######                                 #####
+	#####  QUERY OWNER    ######
+	####                                 ######
+	######################
 
 	LAYER
-		NAME "query_building_individual_unit_owner"
+		NAME "query_owner_building_individual_unit"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.identify_building_individual_unit() d, main.tp_face AS f WHERE d.selected_projection=f.gid AND d.selected_level=%visible_building_level% ) AS subquery  USING UNIQUE selected_nid USING srid=2370"
+		DATA "geom FROM (SELECT * FROM main.query_owner_building_individual_unit(%selected_individual_unit_nid%, %visible_building_level%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -366,39 +404,53 @@ MAP
 			"init=epsg:2370"
 		END
 		VALIDATION
-			"visible_building_level"  "^[0-9][.][0-9]+$"			#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"selected_individual_unit_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik lakast keresem
 		END
 
-		#--------------------------
-		# Normál elemek		
-		#--------------------------
-		CLASS
-			NAME "normal"
-			STYLE
-				COLOR 100 102 0
-			END
-			STYLE
-				OUTLINECOLOR 0 0 0
-				WIDTH 1
-			END
-		END #class
+		HEADER 'templates/query_owner_building_individual_unit_header.html'
+		TEMPLATE 'templates/query_owner_building_individual_unit.html'
+		FOOTER 'templates/query_owner_building_individual_unit_footer.html'
 
-		HEADER 'templates/query_building_individual_unit_owner_header.html'
-		TEMPLATE 'templates/query_building_individual_unit_owner.html'
-		FOOTER 'templates/query_building_individual_unit_owner_footer.html'
+	END #layer
+
+	########################
+	######                                 #####
+	#####  QUERY POINTS    ######
+	####                                 ######
+	######################
+	LAYER
+		NAME "query_point_building_individual_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_point_building_individual_unit(%selected_individual_unit_nid%, %visible_building_level%) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"selected_individual_unit_nid"  "^[0-9]+$"			#Ez a parameter mondja meg, hogy melyik lakast keresem
+		END
+
+		HEADER 'templates/query_point_building_individual_unit_header.html'
+		TEMPLATE 'templates/query_point_building_individual_unit.html'
+		FOOTER 'templates/query_point_building_individual_unit_footer.html'
 
 	END #layer
 
 
-
-	#_____________________________________
-	#
-	# BUILDING UNIT for VIEW
-	#
-	#_____________________________________
-
+	#########################
+	########                           ######
+	#######     VIEW           #######
+	######                           #######
+	######################
 	LAYER
-		NAME "wiev_building_individual_unit"
+		NAME "view_building_individual_unit"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
@@ -410,8 +462,8 @@ MAP
 			"init=epsg:2370"
 		END
 		VALIDATION
-			"visible_building_level"  "^[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
-			"highlighted_building_unit_nid"  "^[0-9]+$"	#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
+			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"selected_building_individual_unit_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
 		END
 
 		#--------------------------
@@ -420,7 +472,7 @@ MAP
 		CLASSITEM "nid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%highlighted_building_unit_nid%"  
+			EXPRESSION  "%selected_building_individual_unit_nid%"  
 			STYLE
 				COLOR 90 50 0
 			END
