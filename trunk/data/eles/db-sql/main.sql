@@ -34,9 +34,9 @@ SET search_path = main, pg_catalog;
 --
 
 CREATE TYPE geod_position AS (
-x double precision,
-y double precision,
-h double precision
+	x double precision,
+	y double precision,
+	h double precision
 );
 
 
@@ -47,10 +47,10 @@ ALTER TYPE main.geod_position OWNER TO tdc;
 --
 
 CREATE TYPE identify_building AS (
-selected_projection bigint,
-selected_name text,
-selected_nid bigint,
-immovable_type integer
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	immovable_type integer
 );
 
 
@@ -61,14 +61,14 @@ ALTER TYPE main.identify_building OWNER TO tdc;
 --
 
 CREATE TYPE identify_building_individual_unit AS (
-selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    selected_level numeric(4,1),
-    selected_settlement text,
-    selected_hrsz text,
-    selected_registered_area numeric(12,1),
-    selected_measured_area numeric(12,1)
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	selected_level numeric(4,1),
+	selected_settlement text,
+	selected_hrsz text,
+	selected_registered_area numeric(12,1),
+	selected_measured_area numeric(12,1)
 );
 
 
@@ -79,28 +79,67 @@ ALTER TYPE main.identify_building_individual_unit OWNER TO tdc;
 --
 
 CREATE TYPE identify_parcel AS (
-    selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    immovable_type integer
+	immovable_type integer,
+	selected_projection bigint,
+	selected_name text,
+	selected_nid bigint,
+	selected_settlement text,
+	selected_hrsz text,
+	selected_registered_area numeric(12,1),
+	selected_measured_area numeric(12,1)
 );
 
 
 ALTER TYPE main.identify_parcel OWNER TO tdc;
 
 --
--- Name: immovable_identifier; Type: TYPE; Schema: main; Owner: tdc
+-- Name: query_owner_building_individual_unit; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE immovable_identifier AS (
-    selected_projection bigint,
-    selected_name text,
-    selected_nid bigint,
-    immovable_type integer
+CREATE TYPE query_owner_building_individual_unit AS (
+	found_projection bigint,
+	found_unit bigint,
+	found_unit_level numeric(4,1),
+	owner_name text,
+	owner_share text,
+	owner_contract_date date
 );
 
 
-ALTER TYPE main.immovable_identifier OWNER TO tdc;
+ALTER TYPE main.query_owner_building_individual_unit OWNER TO tdc;
+
+--
+-- Name: query_owner_parcel; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE query_owner_parcel AS (
+	found_projection bigint,
+	found_parcel bigint,
+	owner_name text,
+	owner_share text,
+	owner_contract_date date
+);
+
+
+ALTER TYPE main.query_owner_parcel OWNER TO tdc;
+
+--
+-- Name: query_point; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE query_point AS (
+	found_projection bigint,
+	point_name text,
+	point_description text,
+	point_quality integer,
+	point_measured_date date,
+	point_x numeric(8,2),
+	point_y numeric(8,2),
+	point_h numeric(8,2)
+);
+
+
+ALTER TYPE main.query_point OWNER TO tdc;
 
 --
 -- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
@@ -132,13 +171,14 @@ COMMENT ON FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) IS 'A 
 
 CREATE FUNCTION identify_building() RETURNS SETOF identify_building
     LANGUAGE plpgsql
-    AS $$DECLARE
+    AS $$
+DECLARE
   object_name text = 'im_building';
   immovable_type_1 integer = 1;
   immovable_type_2 integer = 2;
   immovable_type_3 integer = 3;
   immovable_type_4 integer = 4;
-  output main.immovable_identifier%rowtype;
+  output main.identify_building%rowtype;
 BEGIN
 
 
@@ -302,13 +342,14 @@ ALTER FUNCTION main.identify_building_individual_unit() OWNER TO tdc;
 
 CREATE FUNCTION identify_parcel() RETURNS SETOF identify_parcel
     LANGUAGE plpgsql
-    AS $$DECLARE
+    AS $$
+DECLARE
   object_name text = 'im_parcel';
   immovable_type_1 integer = 1;
   immovable_type_2 integer = 2;
   immovable_type_3 integer = 3;
   immovable_type_4 integer = 4;
-  output main.immovable_identifier%rowtype;
+  output main.identify_parcel%rowtype;
 BEGIN
 
 
@@ -320,17 +361,24 @@ BEGIN
   --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_1 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_1 AS immovable_type
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
     FROM 
       main.im_parcel parcel, 
-      main.rt_right r
+      main.rt_right r,
+      main.tp_face face
     WHERE 
        parcel.nid=r.im_parcel AND      
-       r.rt_type=1 AND
-       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) LOOP
+       r.rt_type=1 AND 
+       face.gid=parcel.projection AND
+       coalesce(parcel.im_settlement,'')||main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) NOT IN (SELECT coalesce(im_settlement,'')||main.hrsz_concat(hrsz_main,hrsz_fraction) FROM main.im_building) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -343,17 +391,27 @@ BEGIN
   --
   FOR output IN
      SELECT DISTINCT
+      immovable_type_2 AS immovable_type,
       parcel.projection AS selected_projection,
-      object_name AS selected_name, 
-      parcel.nid AS selected_nid,
-      immovable_type_2 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+      object_name AS selected_name,
+      parcel.nid AS selected_nid,      
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r, 
+      main.im_building building,
+      main.tp_face face
     WHERE 
       parcel.nid=r.im_parcel AND 
+      face.gid=parcel.projection AND
       r.rt_type=1 AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
-      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) LOOP
+      building.nid NOT IN (SELECT coalesce(im_building, -1) FROM main.rt_right WHERE rt_type=1 ) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -366,17 +424,28 @@ BEGIN
   --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_3 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_3 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r, 
+      main.im_building building,
+      main.tp_face face
     WHERE 
        parcel.nid=r.im_parcel AND 
+       face.gid=parcel.projection AND
        r.rt_type=1 AND
        building.im_settlement=parcel.im_settlement AND 
        main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
-       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) LOOP
+       building.nid IN (SELECT im_building FROM main.rt_right r WHERE r.rt_type=1) 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -388,23 +457,33 @@ BEGIN
 --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_4 AS immovable_type,
       parcel.projection AS selected_projection,
       object_name AS selected_name, 
       parcel.nid AS selected_nid,
-      immovable_type_4 AS immovable_type
-    FROM main.im_parcel parcel, main.im_building building, main.im_building_individual_unit indunit, main.rt_right r
+      parcel.im_settlement AS selected_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
+      parcel.area AS selected_registered_area,
+      st_area(face.geom) AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.im_building building, 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.tp_face face
     WHERE 
+      face.gid=parcel.projection AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
       building.nid=indunit.im_building AND
       indunit.nid=r.im_building_individual_unit AND
-      r.rt_type=1 LOOP
+      r.rt_type=1 
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
   RETURN;
-END;
-
+END; 
 $$;
 
 
@@ -420,6 +499,336 @@ selected_name       => "im_parcel"
 selected_id         => A földrészlet nid azonosítója (im_parcel táblában)
 immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott földrészleten van-e épület és az milyen kapcsolatban áll a földrészlettel';
 
+
+--
+-- Name: query_owner_building_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_building_individual_unit() RETURNS SETOF query_owner_building_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  object_name text = 'im_building_individual_unit';
+  output main.query_owner_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      indunit.nid AS found_unit,
+      unitlevel.im_levels AS found_unit_level,
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_building_individual_unit_level unitlevel
+    WHERE
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_building_individual_unit=indunit.nid AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_building_individual_unit() OWNER TO tdc;
+
+--
+-- Name: query_owner_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) RETURNS SETOF query_owner_building_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  object_name text = 'im_building_individual_unit';
+  output main.query_owner_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      indunit.nid AS found_unit,
+      unitlevel.im_levels AS found_unit_level,
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_building_individual_unit_level unitlevel
+    WHERE
+      selected_individual_unit=indunit.nid AND
+      visible_building_level = unitlevel.im_levels AND
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_building_individual_unit=indunit.nid AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) OWNER TO tdc;
+
+--
+-- Name: query_owner_parcel(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_parcel(immovable_type integer, selected_parcel bigint) RETURNS SETOF query_owner_parcel
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_owner_parcel%rowtype;
+BEGIN
+
+
+  ---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+
+  ----------------------------------------
+  -- 3. Foldreszlet kulonallo epulettel --
+  ----------------------------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+  --
+  IF( immovable_type = 1 OR immovable_type = 2 OR immovable_type = 3 ) THEN
+    
+    FOR output IN
+
+      SELECT DISTINCT
+        parcel.projection AS selected_projection,      
+        parcel.nid AS selected_nid,
+        person.name AS owner_name,
+        r.share_numerator||'/'||r.share_denominator AS owner_share,
+        document.date AS owner_contract_date
+      FROM 
+        main.im_parcel parcel, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person,
+        main.tp_face face
+      WHERE 
+        parcel.nid=selected_parcel AND
+        parcel.nid=r.im_parcel AND      
+        r.rt_type=1 AND 
+        r.pn_person=person.nid AND
+        r.rt_legal_document=document.nid
+
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+
+  ------------------
+  -- 4. Tarsashaz --
+  ------------------
+  --
+  -- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+  --
+  ELSIF ( immovable_type = 4 ) THEN
+
+    FOR output IN
+
+      SELECT DISTINCT
+        parcel.projection AS selected_projection,      
+        parcel.nid AS selected_nid,
+        person.name AS owner_name,
+        indunit.share_numerator||'/'||building.share_denominator||' ('||r.share_numerator||'/'||r.share_denominator||')' AS owner_share,
+        document.date AS owner_contract_date,
+        indunit.hrsz_unit  
+      FROM
+        main.im_parcel parcel,
+        main.im_building building,
+        main.im_building_individual_unit indunit, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person
+    WHERE
+        parcel.nid=selected_parcel AND
+        building.im_settlement=parcel.im_settlement AND
+        main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+        building.nid=indunit.im_building AND
+        r.rt_legal_document=document.nid AND
+        r.pn_person=person.nid AND
+        r.im_building_individual_unit=indunit.nid
+    ORDER BY indunit.hrsz_unit
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+  END IF;
+
+  RETURN;
+END; 
+$$;
+
+
+ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_parcel bigint) OWNER TO tdc;
+
+--
+-- Name: query_point_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_point_building_individual_unit(selected_individual_unit_nid bigint, visible_building_level numeric) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.im_building_individual_unit_level unitlevel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      indunit.nid=selected_individual_unit_nid AND
+      unitlevel.im_levels=visible_building_level AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+$$;
+
+
+ALTER FUNCTION main.query_point_building_individual_unit(selected_individual_unit_nid bigint, visible_building_level numeric) OWNER TO tdc;
+
+--
+-- Name: query_point_parcel(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_point_parcel(selected_parcel bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      parcel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_parcel parcel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_parcel=parcel.nid AND
+      parcel.projection=face.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_point_parcel(selected_parcel bigint) OWNER TO tdc;
 
 --
 -- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
@@ -932,7 +1341,8 @@ CREATE TABLE im_building (
     im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
     hrsz_fraction integer,
-    title_angle numeric(4,2)
+    title_angle numeric(4,2),
+    share_denominator integer
 );
 
 
@@ -953,7 +1363,8 @@ CREATE TABLE im_building_individual_unit (
     nid bigint NOT NULL,
     im_building bigint NOT NULL,
     hrsz_unit integer NOT NULL,
-    model bigint
+    model bigint,
+    share_numerator integer NOT NULL
 );
 
 
@@ -1890,20 +2301,20 @@ ALTER TABLE ONLY tp_volume ALTER COLUMN gid SET DEFAULT nextval('tp_volume_gid_s
 -- Data for Name: im_building; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_building VALUES (1, NULL, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00);
-INSERT INTO im_building VALUES (2, NULL, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00);
-INSERT INTO im_building VALUES (3, NULL, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00);
-INSERT INTO im_building VALUES (4, 200, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00);
-INSERT INTO im_building VALUES (5, 260, NULL, 'A', 104, 51, 'Budapest', 473, 1, 30.00);
+INSERT INTO im_building VALUES (1, NULL, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00, NULL);
+INSERT INTO im_building VALUES (2, NULL, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00, NULL);
+INSERT INTO im_building VALUES (3, NULL, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00, NULL);
+INSERT INTO im_building VALUES (5, 260, NULL, 'A', 104, 51, 'Budapest', 473, 1, 30.00, NULL);
+INSERT INTO im_building VALUES (4, 200, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00, 1000);
 
 
 --
 -- Data for Name: im_building_individual_unit; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_building_individual_unit VALUES (1, 4, 1, 46);
-INSERT INTO im_building_individual_unit VALUES (2, 4, 2, 47);
-INSERT INTO im_building_individual_unit VALUES (3, 4, 3, 48);
+INSERT INTO im_building_individual_unit VALUES (1, 4, 1, 46, 358);
+INSERT INTO im_building_individual_unit VALUES (3, 4, 3, 48, 321);
+INSERT INTO im_building_individual_unit VALUES (2, 4, 2, 47, 321);
 
 
 --
@@ -2290,6 +2701,7 @@ INSERT INTO sv_survey_document VALUES (2, '2012-10-23', 'Mérési jegyzőkönyv
 INSERT INTO sv_survey_document VALUES (3, '2012-10-30', 'Mérési jegyzőkönyv
 
 Épületek belső felmérése');
+INSERT INTO sv_survey_document VALUES (4, '2012-11-02', 'ez csak egy atmeneti dokumentum');
 
 
 --
@@ -2496,6 +2908,7 @@ INSERT INTO tp_face VALUES (47, '{77,69,70,78}', '0103000080010000000500000048E1
 INSERT INTO tp_face VALUES (43, '{72,75,79,76}', '010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B40B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B410000000000205B40', NULL, 'MODEL- BUILDING - Emelet NY-i fala-211/1');
 INSERT INTO tp_face VALUES (61, '{95,92,84,87}', '01030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház K-i fala-124');
 INSERT INTO tp_face VALUES (45, '{76,79,78,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Emelet alja-211/1');
+INSERT INTO tp_face VALUES (88, '{120,121,103,105}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának D-i fala');
 INSERT INTO tp_face VALUES (50, '{79,76,77,78}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint teteje-211/1');
 INSERT INTO tp_face VALUES (53, '{88,91,83,80}', '01030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40', NULL, 'MODEL- BUILDING - Ház K-i fala-124');
 INSERT INTO tp_face VALUES (55, '{89,88,80,81}', '010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház É-i fala-124');
@@ -2527,18 +2940,14 @@ INSERT INTO tp_face VALUES (78, '{116,119,104,115}', '01030000800100000005000000
 INSERT INTO tp_face VALUES (79, '{117,116,115,114}', '01030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B410000000000405A40EC51B89E5FB223410000000018D30B410000000000405A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 2. lakásának É-i fala');
 INSERT INTO tp_face VALUES (80, '{119,116,117,118}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 2. lakásának plafonja');
 INSERT INTO tp_face VALUES (82, '{122,113,112,123}', '0103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának D-i fala');
-INSERT INTO tp_face VALUES (83, '{120,123,112,105}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának K-i fala');
-INSERT INTO tp_face VALUES (84, '{121,120,105,103}', '01030000800100000005000000666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának É-i (folyosói) fala');
-INSERT INTO tp_face VALUES (85, '{103,105,112,113}', '01030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának padlója');
 INSERT INTO tp_face VALUES (86, '{120,121,122,123}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának plafonja');
 INSERT INTO tp_face VALUES (87, '{103,121,118,102}', '01030000800100000005000000666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40666666666EB223419A999999B5D20B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának NY-i fala');
-INSERT INTO tp_face VALUES (88, '{120,121,103,105}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának D-i fala');
-INSERT INTO tp_face VALUES (89, '{119,120,105,104}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának K-i fala');
 INSERT INTO tp_face VALUES (90, '{118,119,104,102}', '01030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának É-i fala');
-INSERT INTO tp_face VALUES (91, '{104,105,103,102}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának padlója');
+INSERT INTO tp_face VALUES (83, '{120,123,112,105}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának K-i fala');
 INSERT INTO tp_face VALUES (92, '{119,118,121,120}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának plafonja');
 INSERT INTO tp_face VALUES (97, '{101,98,99,100}', '010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41000000000080594048E17A148CB22341713D0AD77DD30B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B410000000000805940', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének padlója');
 INSERT INTO tp_face VALUES (81, '{102,114,115,104}', '01030000800100000005000000EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B89E5FB223410000000018D30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának padlója');
+INSERT INTO tp_face VALUES (89, '{119,120,105,104}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának K-i fala');
 INSERT INTO tp_face VALUES (99, '{103,113,122,121}', '01030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának NY-i fala');
 INSERT INTO tp_face VALUES (93, '{108,101,100,109}', '010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének NY-i fala');
 INSERT INTO tp_face VALUES (94, '{111,109,100,99}', '010300008001000000050000003D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének D-i fala');
@@ -2547,6 +2956,8 @@ INSERT INTO tp_face VALUES (104, '{128,129,130,131}', '0103000080010000000500000
 INSERT INTO tp_face VALUES (95, '{110,111,99,98}', '0103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41000000000080594048E17A148CB22341713D0AD77DD30B41000000000080594048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének K-i fala');
 INSERT INTO tp_face VALUES (96, '{108,110,98,101}', '010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének É-i fala');
 INSERT INTO tp_face VALUES (98, '{110,108,109,111}', '0103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület alsószinti közös helyiségének plafonja');
+INSERT INTO tp_face VALUES (84, '{121,120,105,103}', '01030000800100000005000000666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának É-i (folyosói) fala');
+INSERT INTO tp_face VALUES (85, '{103,105,112,113}', '01030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület 3. lakásának padlója');
 INSERT INTO tp_face VALUES (106, '{140,136,137,141}', '0103000080010000000500000066666666B3B223410000000040D10B410000000000005A4066666666B3B223410000000040D10B4133333333335359400AD7A3F0BFB22341295C8FC2EBD00B4133333333335359400AD7A3F0BFB22341295C8FC2EBD00B410000000000005A4066666666B3B223410000000040D10B410000000000005A40', NULL, 'MODEL- BUILDING - 473/1/A épület alsó szintjének NY-i fala');
 INSERT INTO tp_face VALUES (107, '{141,137,138,142}', '010300008001000000050000000AD7A3F0BFB22341295C8FC2EBD00B410000000000005A400AD7A3F0BFB22341295C8FC2EBD00B4133333333335359401F85EBD1CFB223418FC2F52812D10B4133333333335359401F85EBD1CFB223418FC2F52812D10B410000000000005A400AD7A3F0BFB22341295C8FC2EBD00B410000000000005A40', NULL, 'MODEL- BUILDING - 473/1/A épület alsó szintjének D-i fala');
 INSERT INTO tp_face VALUES (108, '{139,143,142,138}', '0103000080010000000500000014AE47E1C2B2234185EB51B866D10B41333333333353594014AE47E1C2B2234185EB51B866D10B410000000000005A401F85EBD1CFB223418FC2F52812D10B410000000000005A401F85EBD1CFB223418FC2F52812D10B41333333333353594014AE47E1C2B2234185EB51B866D10B413333333333535940', NULL, 'MODEL- BUILDING - 473/1/A épület alsó szintjének K-i fala');
@@ -2561,6 +2972,7 @@ INSERT INTO tp_face VALUES (115, '{148,151,147,144}', '0103000080010000000500000
 INSERT INTO tp_face VALUES (116, '{144,147,146,145}', '0103000080010000000500000066666666B3B223410000000040D10B413333333333135A4014AE47E1C2B2234185EB51B866D10B413333333333135A401F85EBD1CFB223418FC2F52812D10B413333333333135A400AD7A3F0BFB22341295C8FC2EBD00B413333333333135A4066666666B3B223410000000040D10B413333333333135A40', NULL, 'MODEL- BUILDING - 473/1/A épület fels[ szintjének padlója');
 INSERT INTO tp_face VALUES (117, '{148,149,150,151}', '0103000080010000000500000066666666B3B223410000000040D10B410000000000C05A400AD7A3F0BFB22341295C8FC2EBD00B410000000000C05A401F85EBD1CFB223418FC2F52812D10B410000000000C05A4014AE47E1C2B2234185EB51B866D10B410000000000C05A4066666666B3B223410000000040D10B410000000000C05A40', NULL, 'MODEL- BUILDING - 473/1/A épület felső szintjének plafonja');
 INSERT INTO tp_face VALUES (112, '{144,145,149,148}', '0103000080010000000500000066666666B3B223410000000040D10B413333333333135A400AD7A3F0BFB22341295C8FC2EBD00B413333333333135A400AD7A3F0BFB22341295C8FC2EBD00B410000000000C05A4066666666B3B223410000000040D10B410000000000C05A4066666666B3B223410000000040D10B413333333333135A40', NULL, 'MODEL- BUILDING - 473/1/A épület fels[ szintjének NY-i fala');
+INSERT INTO tp_face VALUES (91, '{104,105,103,102}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának padlója');
 INSERT INTO tp_face VALUES (34, '{68,71,70,69}', '010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940666666667AB22341A4703D0A9DD30B41F6285C8FC26559405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - Ház alja');
 INSERT INTO tp_face VALUES (103, '{132,133,129,128}', '0103000080010000000500000048E17A14B2B22341A4703D0A41D10B413333333333D35A40D7A3703DC3B22341000000006CD10B413333333333D35A40D7A3703DC3B22341000000006CD10B41AE47E17A143E594048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D594048E17A14B2B22341A4703D0A41D10B413333333333D35A40', NULL, 'MODEL- BUILDING - 473/1/A épület É-i fala');
 INSERT INTO tp_face VALUES (51, '{71,68,69,70}', '01030000800100000005000000C3F528DC56B2234133333333CFD30B41D7A3703D0A8759405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC2655940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940', NULL, 'MODELL - PARCELLA - 211/1');
@@ -2691,7 +3103,6 @@ INSERT INTO tp_node VALUES (103, '0101000080666666666EB223419A999999B5D20B410000
 INSERT INTO tp_node VALUES (121, '0101000080666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40', NULL);
 INSERT INTO tp_node VALUES (104, '0101000080B81E856B93B22341295C8FC24BD30B410000000000405A40', NULL);
 INSERT INTO tp_node VALUES (119, '0101000080B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40', NULL);
-INSERT INTO tp_node VALUES (105, '010100008052B81E859AB223410AD7A3701BD30B410000000000405A40', NULL);
 INSERT INTO tp_node VALUES (120, '010100008052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL);
 INSERT INTO tp_node VALUES (99, '01010000803D0AD7A3A1B2234114AE47E1EAD20B410000000000805940', NULL);
 INSERT INTO tp_node VALUES (100, '0101000080F6285C8F90B22341CDCCCCCCC0D20B410000000000805940', NULL);
@@ -2727,6 +3138,7 @@ INSERT INTO tp_node VALUES (133, '0101000080D7A3703DC3B22341000000006CD10B413333
 INSERT INTO tp_node VALUES (134, '01010000803D0AD723D1B22341A4703D0A11D10B413333333333D35A40', NULL);
 INSERT INTO tp_node VALUES (135, '0101000080F6285C8FBFB22341AE47E17AE6D00B413333333333D35A40', NULL);
 INSERT INTO tp_node VALUES (68, '01010000805C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940', 'BUILDING - 211/1');
+INSERT INTO tp_node VALUES (105, '010100008052B81E859AB223410AD7A3701BD30B410000000000405A40', NULL);
 
 
 --
@@ -2741,10 +3153,8 @@ INSERT INTO tp_volume VALUES (2, '{2}', 'PARCELL - 124 hrsz', '010F0000800100000
 INSERT INTO tp_volume VALUES (44, '{58,59,60,61,62,63}', 'BUILDING - 124 hrsz-on Beső épület', '010F000080060000000103000080010000000500000014AE4761F3B12341295C8FC279D20B41000000000060594014AE4761F3B12341295C8FC279D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B41333333333353594014AE4761F3B12341295C8FC279D20B4100000000006059400103000080010000000500000085EB51B8ECB12341D7A3703DAAD20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4014AE4761F3B12341295C8FC279D20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B4100000000006059400103000080010000000500000052B81E05DEB1234114AE47E18AD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B41000000000060594052B81E05DEB1234114AE47E18AD20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A400103000080010000000500000052B81E05DEB1234114AE47E18AD20B41333333333353594085EB51B8ECB12341D7A3703DAAD20B41000000000060594014AE4761F3B12341295C8FC279D20B410000000000605940A4703D0AE5B12341CDCCCCCC58D20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333535940');
 INSERT INTO tp_volume VALUES (43, '{52,53,55,54,56,57}', 'BUILDING - 124 hrsz-on Külső épület', '010F0000800600000001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A40F6285C8F17B223417B14AE4787D20B4133333333337359401F85EB5129B223417B14AE47B1D20B4166666666667659401F85EB5129B223417B14AE47B1D20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A400AD7A3F007B223411F85EB51ECD20B419A99999999795940F6285C8F17B223417B14AE4787D20B413333333333735940F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B4133333333337359400AD7A3F007B223411F85EB51ECD20B419A99999999795940295C8F4219B223410AD7A37015D30B419A999999997959401F85EB5129B223417B14AE47B1D20B416666666666765940F6285C8F17B223417B14AE4787D20B413333333333735940');
 INSERT INTO tp_volume VALUES (45, '{64,65,66,67,68,69}', 'MODEL- BUILDING - 210/1/A épület', '010F0000800600000001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940D7A370BD75B22341713D0AD779D20B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594001030000800100000005000000EC51B81EA3B223410AD7A370E9D20B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940EC51B81EA3B223410AD7A370E9D20B410000000000005B40010300008001000000050000000AD7A3708CB22341B81E85EB83D30B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A59400AD7A3708CB22341B81E85EB83D30B410000000000005B4001030000800100000005000000D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C594001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B4001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40');
-INSERT INTO tp_volume VALUES (50, '{87,88,89,90,91,92}', 'MODEL- BUILDING - SHARED UNIT - 210/1/A épület 2. felső folyosó', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40');
 INSERT INTO tp_volume VALUES (46, '{70,71,72,73,74,75}', 'MODEL- BUILDING - UNIT - 210/1/A épület 1. lakás', '010F0000800600000001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41000000000080594014AE476176B223411F85EB5180D20B41000000000080594014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A400103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A4001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940EC51B89E5FB223410000000018D30B410000000000805940EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A4001030000800100000005000000EC51B89E5FB223410000000018D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41000000000080594014AE476176B223411F85EB5180D20B410000000000805940EC51B89E5FB223410000000018D30B41000000000080594001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A40');
 INSERT INTO tp_volume VALUES (47, '{76,77,78,79,80,81}', 'MODEL- BUILDING - UNIT - 210/1/A épület 2. lakás', '010F0000800600000001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B410000000000405A40EC51B89E5FB223410000000018D30B410000000000405A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B89E5FB223410000000018D30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40');
-INSERT INTO tp_volume VALUES (48, '{99,82,83,84,85,86}', 'MODEL- BUILDING - UNIT - 210/1/A épület 2. lakás', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40');
 INSERT INTO tp_volume VALUES (49, '{93,94,95,96,97,98}', 'MODEL- BUILDING - SHARED UNIT - 210/1/A épület alsó közös helyiség', '010F00008006000000010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40010300008001000000050000003D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41000000000080594048E17A148CB22341713D0AD77DD30B41000000000080594048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41000000000080594048E17A148CB22341713D0AD77DD30B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40');
 INSERT INTO tp_volume VALUES (9, '{9}', 'PARCELL - 210/1 hrsz', '010F0000800100000001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940');
 INSERT INTO tp_volume VALUES (52, '{106,107,108,109,110,111}', 'MODEL- BUILDING - LEVEL - 473/1/A épület alsó szintje', '010F000080060000000103000080010000000500000066666666B3B223410000000040D10B410000000000005A4066666666B3B223410000000040D10B4133333333335359400AD7A3F0BFB22341295C8FC2EBD00B4133333333335359400AD7A3F0BFB22341295C8FC2EBD00B410000000000005A4066666666B3B223410000000040D10B410000000000005A40010300008001000000050000000AD7A3F0BFB22341295C8FC2EBD00B410000000000005A400AD7A3F0BFB22341295C8FC2EBD00B4133333333335359401F85EBD1CFB223418FC2F52812D10B4133333333335359401F85EBD1CFB223418FC2F52812D10B410000000000005A400AD7A3F0BFB22341295C8FC2EBD00B410000000000005A400103000080010000000500000014AE47E1C2B2234185EB51B866D10B41333333333353594014AE47E1C2B2234185EB51B866D10B410000000000005A401F85EBD1CFB223418FC2F52812D10B410000000000005A401F85EBD1CFB223418FC2F52812D10B41333333333353594014AE47E1C2B2234185EB51B866D10B4133333333335359400103000080010000000500000066666666B3B223410000000040D10B410000000000005A4014AE47E1C2B2234185EB51B866D10B410000000000005A4014AE47E1C2B2234185EB51B866D10B41333333333353594066666666B3B223410000000040D10B41333333333353594066666666B3B223410000000040D10B410000000000005A400103000080010000000500000066666666B3B223410000000040D10B41333333333353594014AE47E1C2B2234185EB51B866D10B4133333333335359401F85EBD1CFB223418FC2F52812D10B4133333333335359400AD7A3F0BFB22341295C8FC2EBD00B41333333333353594066666666B3B223410000000040D10B4133333333335359400103000080010000000500000066666666B3B223410000000040D10B410000000000005A400AD7A3F0BFB22341295C8FC2EBD00B410000000000005A401F85EBD1CFB223418FC2F52812D10B410000000000005A4014AE47E1C2B2234185EB51B866D10B410000000000005A4066666666B3B223410000000040D10B410000000000005A40');
@@ -2753,6 +3163,8 @@ INSERT INTO tp_volume VALUES (51, '{100,101,102,103,104,105}', 'MODEL- BUILDING 
 INSERT INTO tp_volume VALUES (26, '{26}', 'PARCELL - 473/1 hrsz', '010F000080010000000103000080010000000600000014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940A4703D0A13B323413333333395D10B41C3F5285C8F425940F6285C0FFEB2234185EB51B820D20B4166666666664659408FC2F528D6B2234185EB51B8C2D10B4152B81E85EB415940EC51B89EA4B22341CDCCCCCC46D10B41AE47E17A143E594014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940');
 INSERT INTO tp_volume VALUES (42, '{46,47,48,49,50,34}', 'BUILDING - FÖLDSZINT - 211/1 hrsz', '010F00008006000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A400103000080010000000500000048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40666666667AB22341A4703D0A9DD30B41F6285C8FC2655940666666E66BB223413D0AD7A302D40B417B14AE47E18A59400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40666666E66BB223413D0AD7A302D40B417B14AE47E18A5940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940B81E856B58B223419A999999CDD30B41D7A3703D0A475A40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40C3F528DC56B2234133333333CFD30B41D7A3703D0A8759405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB6159401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4001030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940666666667AB22341A4703D0A9DD30B41F6285C8FC26559405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940');
 INSERT INTO tp_volume VALUES (41, '{40,41,42,43,44,45}', 'BUILDING - EMELET - 211/1 hrsz', '010F00008006000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40666666667AB22341A4703D0A9DD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4001030000800100000005000000666666667AB22341A4703D0A9DD30B410000000000205B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40666666E66BB223413D0AD7A302D40B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B4001030000800100000005000000C3F528DC56B2234133333333CFD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40C3F528DC56B2234133333333CFD30B410000000000205B40010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B40B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B410000000000205B40010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40');
+INSERT INTO tp_volume VALUES (48, '{99,82,83,84,85,86}', 'MODEL- BUILDING - UNIT - 210/1/A épület 2. lakás', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40');
+INSERT INTO tp_volume VALUES (50, '{87,88,89,90,91,92}', 'MODEL- BUILDING - SHARED UNIT - 210/1/A épület 2. felső folyosó', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40');
 
 
 --
@@ -3436,4 +3848,5 @@ ALTER TABLE ONLY tp_node
 --
 -- PostgreSQL database dump complete
 --
+
 
