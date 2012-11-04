@@ -47,10 +47,15 @@ ALTER TYPE main.geod_position OWNER TO tdc;
 --
 
 CREATE TYPE identify_building AS (
+	immovable_type integer,
 	selected_projection bigint,
 	selected_name text,
 	selected_nid bigint,
-	immovable_type integer
+	selected_settlement text,
+	selected_hrsz text,
+	selected_levels integer,
+	selected_registered_area numeric(12,1),
+	selected_measured_area numeric(12,1)
 );
 
 
@@ -93,35 +98,18 @@ CREATE TYPE identify_parcel AS (
 ALTER TYPE main.identify_parcel OWNER TO tdc;
 
 --
--- Name: query_owner_building_individual_unit; Type: TYPE; Schema: main; Owner: tdc
+-- Name: query_owner; Type: TYPE; Schema: main; Owner: tdc
 --
 
-CREATE TYPE query_owner_building_individual_unit AS (
+CREATE TYPE query_owner AS (
 	found_projection bigint,
-	found_unit bigint,
-	found_unit_level numeric(4,1),
 	owner_name text,
 	owner_share text,
 	owner_contract_date date
 );
 
 
-ALTER TYPE main.query_owner_building_individual_unit OWNER TO tdc;
-
---
--- Name: query_owner_parcel; Type: TYPE; Schema: main; Owner: tdc
---
-
-CREATE TYPE query_owner_parcel AS (
-	found_projection bigint,
-	found_parcel bigint,
-	owner_name text,
-	owner_share text,
-	owner_contract_date date
-);
-
-
-ALTER TYPE main.query_owner_parcel OWNER TO tdc;
+ALTER TYPE main.query_owner OWNER TO tdc;
 
 --
 -- Name: query_point; Type: TYPE; Schema: main; Owner: tdc
@@ -198,13 +186,35 @@ BEGIN
   -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
   --
   FOR output IN
-     SELECT DISTINCT
+    SELECT DISTINCT
+      immovable_type_2 AS immovable_type,
       building.projection AS selected_projection,
       object_name AS selected_name, 
-      building.nid AS selected_nid,
-      immovable_type_2 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
-    WHERE 
+      building.nid AS selected_nid,   
+  
+      building.im_settlement AS selected_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
+      levels_for_building.levels AS selected_levels,
+      building.area AS selected_registered_area,
+      levels_for_building.area AS selected_measured_area
+    FROM 
+       main.im_parcel parcel, 
+       main.rt_right r, 
+       main.im_building building,
+      (SELECT
+        building.nid AS building_nid,
+        count( building_levels.im_levels ) AS levels,
+        sum( st_area( face.geom ) ) AS area
+      FROM
+        main.im_building building,
+        main.im_building_levels building_levels,
+        main.tp_face face
+      WHERE
+        building.nid=building_levels.im_building AND
+        face.gid=building_levels.projection
+      GROUP BY building.nid) AS levels_for_building
+    WHERE
+      building.nid=levels_for_building.building_nid AND
       parcel.nid=r.im_parcel AND 
       r.rt_type=1 AND
       building.im_settlement=parcel.im_settlement AND 
@@ -223,12 +233,34 @@ BEGIN
   --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_3 AS immovable_type,
       building.projection AS selected_projection,
       object_name AS selected_name, 
       building.nid AS selected_nid,
-      immovable_type_3 AS immovable_type
-    FROM main.im_parcel parcel, main.rt_right r, main.im_building building
-    WHERE 
+
+      building.im_settlement AS selected_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
+      levels_for_building.levels AS selected_levels,
+      building.area AS selected_registered_area,
+      levels_for_building.area AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.rt_right r, 
+      main.im_building building,
+      (SELECT
+        building.nid AS building_nid,
+        count( building_levels.im_levels ) AS levels,
+        sum( st_area( face.geom ) ) AS area
+      FROM
+        main.im_building building,
+        main.im_building_levels building_levels,
+        main.tp_face face
+      WHERE
+        building.nid=building_levels.im_building AND
+        face.gid=building_levels.projection
+      GROUP BY building.nid) AS levels_for_building
+    WHERE
+       building.nid=levels_for_building.building_nid AND
        parcel.nid=r.im_parcel AND 
        r.rt_type=1 AND
        building.im_settlement=parcel.im_settlement AND 
@@ -245,12 +277,35 @@ BEGIN
 --
   FOR output IN
     SELECT DISTINCT
+      immovable_type_4 AS immovable_type,
       building.projection AS selected_projection,
       object_name AS selected_name, 
       building.nid AS selected_nid,
-      immovable_type_4 AS immovable_type
-    FROM main.im_parcel parcel, main.im_building building, main.im_building_individual_unit indunit, main.rt_right r
+
+      building.im_settlement AS selected_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
+      levels_for_building.levels AS selected_levels,
+      building.area AS selected_registered_area,
+      levels_for_building.area AS selected_measured_area
+    FROM 
+      main.im_parcel parcel, 
+      main.im_building building, 
+      main.im_building_individual_unit indunit, 
+      main.rt_right r,
+      (SELECT
+        building.nid AS building_nid,
+        count( building_levels.im_levels ) AS levels,
+        sum( st_area( face.geom ) ) AS area
+      FROM
+        main.im_building building,
+        main.im_building_levels building_levels,
+        main.tp_face face
+      WHERE
+        building.nid=building_levels.im_building AND
+        face.gid=building_levels.projection
+      GROUP BY building.nid) AS levels_for_building
     WHERE 
+      building.nid=levels_for_building.building_nid AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
       building.nid=indunit.im_building AND
@@ -266,17 +321,6 @@ $$;
 
 
 ALTER FUNCTION main.identify_building() OWNER TO tdc;
-
---
--- Name: FUNCTION identify_building(); Type: COMMENT; Schema: main; Owner: tdc
---
-
-COMMENT ON FUNCTION identify_building() IS 'Visszaadja az összes ingatlan típusba tartozó épület adatait a következő formátumban:
-selected_projection => az épület vetületét ábrázoló polygon azonosítója a tp_face táblában
-selected_name       => "im_building"
-selected_id         => Az épület nid azonosítója (im_building táblában)
-immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott épület milyen kapcsolatban áll a földrészlettel';
-
 
 --
 -- Name: identify_building_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
@@ -501,66 +545,144 @@ immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott földrészleten v
 
 
 --
--- Name: query_owner_building_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+-- Name: query_owner_building(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE FUNCTION query_owner_building_individual_unit() RETURNS SETOF query_owner_building_individual_unit
+CREATE FUNCTION query_owner_building(immovable_type integer, selected_nid bigint) RETURNS SETOF query_owner
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
-  object_name text = 'im_building_individual_unit';
-  output main.query_owner_building_individual_unit%rowtype;
+  output main.query_owner%rowtype;
 BEGIN
 
-  FOR output IN
-    SELECT DISTINCT
-      unitlevel.projection AS found_projection,
-      indunit.nid AS found_unit,
-      unitlevel.im_levels AS found_unit_level,
-      person.name AS owner_name,
-      r.share_numerator||'/'||r.share_denominator AS owner_share, 
-      document.date AS owner_contract_date      
-    FROM 
-      main.im_building_individual_unit indunit, 
-      main.rt_right r,
-      main.rt_legal_document document,
-      main.pn_person person,
-      main.im_building_individual_unit_level unitlevel
+---------------------
+  -- 1. Foldreszlet ---
+  ---------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, de nincs az im_parcel-nek kapcsolata im_building-gel
+  --
+  --------------------------------
+  --2. Foldreszlet az epulettel --
+  --------------------------------
+  --
+  -- Van tualjdonjog az im_parcel-en, van im_building kapcsolata, de az im_building-en nincsen tulajdonjog
+  --
+  IF( immovable_type = 1 OR immovable_type = 2 ) THEN
+    
+    FOR output IN
+
+      SELECT DISTINCT
+        building.projection AS selected_projection,      
+        person.name AS owner_name,
+        r.share_numerator||'/'||r.share_denominator AS owner_share,
+        document.date AS owner_contract_date
+      FROM 
+        main.im_parcel parcel, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person,
+        main.im_building building
+      WHERE 
+        building.nid=selected_nid AND
+        building.im_settlement=parcel.im_settlement AND
+        main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
+        parcel.nid=r.im_parcel AND      
+        r.rt_type=1 AND 
+        r.pn_person=person.nid AND
+        r.rt_legal_document=document.nid
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+
+
+  ----------------------------------------
+  -- 3. Foldreszlet kulonallo epulettel --
+  ----------------------------------------
+  --
+  -- Van tulajdonjog az im_parcel-en, es van egy masik tulajdonjog a hozza kapcsolodo buildin-en is
+  --
+  ELSIF( immovable_type = 3 ) THEN
+    
+    FOR output IN
+
+      SELECT DISTINCT
+        building.projection AS selected_projection,      
+        person.name AS owner_name,
+        r.share_numerator||'/'||r.share_denominator AS owner_share,
+        document.date AS owner_contract_date
+      FROM 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person,
+        main.im_building building
+      WHERE
+        building.nid=selected_nid AND
+        building.nid=r.im_building AND      
+        r.rt_type=1 AND 
+        r.pn_person=person.nid AND
+        r.rt_legal_document=document.nid
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+
+  ------------------
+  -- 4. Tarsashaz --
+  ------------------
+  --
+  -- Van im_building az im_parcel-en es tartozik hozza im_building_individual_unit
+  --
+  ELSIF ( immovable_type = 4 ) THEN
+
+    FOR output IN
+
+      SELECT DISTINCT
+        building.projection AS selected_projection,      
+        person.name AS owner_name,
+        indunit.share_numerator||'/'||building.share_denominator||' ('||r.share_numerator||'/'||r.share_denominator||')' AS owner_share,
+        document.date AS owner_contract_date,
+        indunit.hrsz_unit  
+      FROM        
+        main.im_building building,
+        main.im_building_individual_unit indunit, 
+        main.rt_right r,
+        main.rt_legal_document document,
+        main.pn_person person
     WHERE
-      r.rt_legal_document=document.nid AND
-      r.pn_person=person.nid AND
-      r.im_building_individual_unit=indunit.nid AND
-      unitlevel.im_building=indunit.im_building AND
-      unitlevel.hrsz_unit=indunit.hrsz_unit
-    LOOP
-    RETURN NEXT output;
-  END LOOP;
+        building.nid=selected_nid AND
+        building.nid=indunit.im_building AND
+        r.rt_legal_document=document.nid AND
+        r.pn_person=person.nid AND
+        r.im_building_individual_unit=indunit.nid
+    ORDER BY indunit.hrsz_unit
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+  END IF;
 
   RETURN;
-END;
+END; 
 
 $$;
 
 
-ALTER FUNCTION main.query_owner_building_individual_unit() OWNER TO tdc;
+ALTER FUNCTION main.query_owner_building(immovable_type integer, selected_nid bigint) OWNER TO tdc;
 
 --
 -- Name: query_owner_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE FUNCTION query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) RETURNS SETOF query_owner_building_individual_unit
+CREATE FUNCTION query_owner_building_individual_unit(selected_nid bigint, visible_building_level numeric) RETURNS SETOF query_owner
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
-  object_name text = 'im_building_individual_unit';
-  output main.query_owner_building_individual_unit%rowtype;
+  output main.query_owner%rowtype;
 BEGIN
 
   FOR output IN
     SELECT DISTINCT
       unitlevel.projection AS found_projection,
-      indunit.nid AS found_unit,
-      unitlevel.im_levels AS found_unit_level,
       person.name AS owner_name,
       r.share_numerator||'/'||r.share_denominator AS owner_share, 
       document.date AS owner_contract_date      
@@ -571,8 +693,8 @@ BEGIN
       main.pn_person person,
       main.im_building_individual_unit_level unitlevel
     WHERE
-      selected_individual_unit=indunit.nid AND
-      visible_building_level = unitlevel.im_levels AND
+      indunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_building_level AND
       r.rt_legal_document=document.nid AND
       r.pn_person=person.nid AND
       r.im_building_individual_unit=indunit.nid AND
@@ -585,21 +707,21 @@ BEGIN
   RETURN;
 END;
 
-
 $$;
 
 
-ALTER FUNCTION main.query_owner_building_individual_unit(selected_individual_unit bigint, visible_building_level numeric) OWNER TO tdc;
+ALTER FUNCTION main.query_owner_building_individual_unit(selected_nid bigint, visible_building_level numeric) OWNER TO tdc;
 
 --
 -- Name: query_owner_parcel(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE FUNCTION query_owner_parcel(immovable_type integer, selected_parcel bigint) RETURNS SETOF query_owner_parcel
+CREATE FUNCTION query_owner_parcel(immovable_type integer, selected_nid bigint) RETURNS SETOF query_owner
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
-  output main.query_owner_parcel%rowtype;
+  output main.query_owner%rowtype;
 BEGIN
 
 
@@ -628,7 +750,6 @@ BEGIN
 
       SELECT DISTINCT
         parcel.projection AS selected_projection,      
-        parcel.nid AS selected_nid,
         person.name AS owner_name,
         r.share_numerator||'/'||r.share_denominator AS owner_share,
         document.date AS owner_contract_date
@@ -639,7 +760,7 @@ BEGIN
         main.pn_person person,
         main.tp_face face
       WHERE 
-        parcel.nid=selected_parcel AND
+        parcel.nid=selected_nid AND
         parcel.nid=r.im_parcel AND      
         r.rt_type=1 AND 
         r.pn_person=person.nid AND
@@ -661,7 +782,6 @@ BEGIN
 
       SELECT DISTINCT
         parcel.projection AS selected_projection,      
-        parcel.nid AS selected_nid,
         person.name AS owner_name,
         indunit.share_numerator||'/'||building.share_denominator||' ('||r.share_numerator||'/'||r.share_denominator||')' AS owner_share,
         document.date AS owner_contract_date,
@@ -674,7 +794,7 @@ BEGIN
         main.rt_legal_document document,
         main.pn_person person
     WHERE
-        parcel.nid=selected_parcel AND
+        parcel.nid=selected_nid AND
         building.im_settlement=parcel.im_settlement AND
         main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
         building.nid=indunit.im_building AND
@@ -689,10 +809,11 @@ BEGIN
 
   RETURN;
 END; 
+
 $$;
 
 
-ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_parcel bigint) OWNER TO tdc;
+ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_nid bigint) OWNER TO tdc;
 
 --
 -- Name: query_point_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
@@ -1484,7 +1605,8 @@ SELECT pg_catalog.setval('im_building_level_unig_volume_seq', 1, false);
 
 CREATE TABLE im_building_levels (
     im_building bigint NOT NULL,
-    im_levels bigint NOT NULL
+    im_levels bigint NOT NULL,
+    projection bigint NOT NULL
 );
 
 
@@ -2301,11 +2423,11 @@ ALTER TABLE ONLY tp_volume ALTER COLUMN gid SET DEFAULT nextval('tp_volume_gid_s
 -- Data for Name: im_building; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_building VALUES (1, NULL, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00, NULL);
-INSERT INTO im_building VALUES (2, NULL, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00, NULL);
-INSERT INTO im_building VALUES (3, NULL, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00, NULL);
-INSERT INTO im_building VALUES (5, 260, NULL, 'A', 104, 51, 'Budapest', 473, 1, 30.00, NULL);
-INSERT INTO im_building VALUES (4, 200, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00, 1000);
+INSERT INTO im_building VALUES (2, 100, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00, NULL);
+INSERT INTO im_building VALUES (1, 322, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00, NULL);
+INSERT INTO im_building VALUES (4, 1050, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00, 1000);
+INSERT INTO im_building VALUES (5, 220, NULL, 'A', 104, 51, 'Budapest', 473, 1, 30.00, NULL);
+INSERT INTO im_building VALUES (3, 58, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00, NULL);
 
 
 --
@@ -2342,14 +2464,14 @@ INSERT INTO im_building_level_unit VALUES (5, 1, 130.0, NULL, 53);
 -- Data for Name: im_building_levels; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_building_levels VALUES (1, 0);
-INSERT INTO im_building_levels VALUES (1, 1);
-INSERT INTO im_building_levels VALUES (2, 0);
-INSERT INTO im_building_levels VALUES (3, 0);
-INSERT INTO im_building_levels VALUES (4, 0);
-INSERT INTO im_building_levels VALUES (4, 1);
-INSERT INTO im_building_levels VALUES (5, 0);
-INSERT INTO im_building_levels VALUES (5, 1);
+INSERT INTO im_building_levels VALUES (1, 0, 34);
+INSERT INTO im_building_levels VALUES (1, 1, 45);
+INSERT INTO im_building_levels VALUES (2, 0, 57);
+INSERT INTO im_building_levels VALUES (3, 0, 63);
+INSERT INTO im_building_levels VALUES (4, 0, 118);
+INSERT INTO im_building_levels VALUES (4, 1, 119);
+INSERT INTO im_building_levels VALUES (5, 0, 110);
+INSERT INTO im_building_levels VALUES (5, 1, 111);
 
 
 --
@@ -2909,6 +3031,8 @@ INSERT INTO tp_face VALUES (43, '{72,75,79,76}', '010300008001000000050000005C8F
 INSERT INTO tp_face VALUES (61, '{95,92,84,87}', '01030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház K-i fala-124');
 INSERT INTO tp_face VALUES (45, '{76,79,78,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Emelet alja-211/1');
 INSERT INTO tp_face VALUES (88, '{120,121,103,105}', '0103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának D-i fala');
+INSERT INTO tp_face VALUES (118, '{97,101,98,99,100,96}', '01030000800100000007000000EC51B89E5FB223410000000018D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41000000000080594048E17A148CB22341713D0AD77DD30B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41000000000080594014AE476176B223411F85EB5180D20B410000000000805940EC51B89E5FB223410000000018D30B410000000000805940', NULL, '210/1 hrsz épület alsó szint alapterületének vetülete.
+');
 INSERT INTO tp_face VALUES (50, '{79,76,77,78}', '01030000800100000005000000B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint teteje-211/1');
 INSERT INTO tp_face VALUES (53, '{88,91,83,80}', '01030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40', NULL, 'MODEL- BUILDING - Ház K-i fala-124');
 INSERT INTO tp_face VALUES (55, '{89,88,80,81}', '010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház É-i fala-124');
@@ -2974,6 +3098,7 @@ INSERT INTO tp_face VALUES (117, '{148,149,150,151}', '0103000080010000000500000
 INSERT INTO tp_face VALUES (112, '{144,145,149,148}', '0103000080010000000500000066666666B3B223410000000040D10B413333333333135A400AD7A3F0BFB22341295C8FC2EBD00B413333333333135A400AD7A3F0BFB22341295C8FC2EBD00B410000000000C05A4066666666B3B223410000000040D10B410000000000C05A4066666666B3B223410000000040D10B413333333333135A40', NULL, 'MODEL- BUILDING - 473/1/A épület fels[ szintjének NY-i fala');
 INSERT INTO tp_face VALUES (91, '{104,105,103,102}', '01030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A40', NULL, 'MODEL- BUILDING - 210/1/A épület emeleti folyosójának padlója');
 INSERT INTO tp_face VALUES (34, '{68,71,70,69}', '010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940666666667AB22341A4703D0A9DD30B41F6285C8FC26559405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940', NULL, 'MODEL- PARCEL - Ház alja');
+INSERT INTO tp_face VALUES (119, '{115,104,105,112,113,103,102,114}', '0103000080010000000900000048E17A148CB22341713D0AD77DD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B89E5FB223410000000018D30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A40', NULL, '210/1 hrsz épület felső szint alapterületének vetülete');
 INSERT INTO tp_face VALUES (103, '{132,133,129,128}', '0103000080010000000500000048E17A14B2B22341A4703D0A41D10B413333333333D35A40D7A3703DC3B22341000000006CD10B413333333333D35A40D7A3703DC3B22341000000006CD10B41AE47E17A143E594048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D594048E17A14B2B22341A4703D0A41D10B413333333333D35A40', NULL, 'MODEL- BUILDING - 473/1/A épület É-i fala');
 INSERT INTO tp_face VALUES (51, '{71,68,69,70}', '01030000800100000005000000C3F528DC56B2234133333333CFD30B41D7A3703D0A8759405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC2655940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940', NULL, 'MODELL - PARCELLA - 211/1');
 INSERT INTO tp_face VALUES (46, '{76,68,69,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint D-i fala-211/1');
@@ -3659,6 +3784,14 @@ ALTER TABLE ONLY im_building_levels
 
 ALTER TABLE ONLY im_building_levels
     ADD CONSTRAINT im_building_levles_fkey_im_levles FOREIGN KEY (im_levels) REFERENCES im_levels(nid);
+
+
+--
+-- Name: im_building_levles_fkey_projection; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_levels
+    ADD CONSTRAINT im_building_levles_fkey_projection FOREIGN KEY (projection) REFERENCES tp_face(gid);
 
 
 --
