@@ -40,13 +40,13 @@ MAP
 		"init=epsg:2370"
 	END
 
-	#/////////////////////////////////////////////////////////
-	#/////////////////////////////////////////////////////////
-	#/////////////                  //////////////////////////
-	#////////////  PARCEL  ///////////////////////////
-	#///////////                  ////////////////////////////
-	#/////////////////////////////////////////////////////////
-	#/////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////                          //////////////////////////
+	#/////////////////////////       PARCEL     ///////////////////////////
+	#////////////////////////                          ////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
 
 	########################
 	######                                 #####
@@ -59,7 +59,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "geom FROM (SELECT * FROM main.identify_parcel() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		DATA "identify_geom FROM main.identify_parcel() USING UNIQUE identify_nid USING srid=2370"
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -82,7 +82,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.query_owner_parcel( %immovable_type%,  %selected_parcel% ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
+		DATA "geom FROM (SELECT * FROM main.query_owner_parcel( %immovable_type%,  %selected_nid% ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -91,7 +91,7 @@ MAP
 			"init=epsg:2370"
 		END
 		VALIDATION
-			"selected_parcel"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+			"selected_nid"  "^[0-9]+$"			#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
 			"immovable_type" "^[0-9]+$"		#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
 		END
 
@@ -101,17 +101,17 @@ MAP
 
 	END #layer
 
-	########################
-	######                                 #####
-	#####  QUERY POINTS    ######
-	####                                 ######
-	######################
+	################################
+	######                                                   ######
+	#####  QUERY PROJECTION POINTS ######
+	####                                                    ######
+	#############################
 	LAYER
-		NAME "query_point_parcel"
+		NAME "query_projection_points_parcel"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.query_point_parcel(%selected_parcel%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE point_name USING srid=2370"
+		DATA "geom FROM (SELECT * FROM main.query_projection_points_parcel(%selected_nid%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE point_name USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -120,14 +120,15 @@ MAP
 			"init=epsg:2370"
 		END
 		VALIDATION
-			"selected_parcel"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+			"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
 		END
 
-		HEADER 'templates/query_header_point.html'
-		TEMPLATE 'templates/query_body_point.html'
-		FOOTER 'templates/query_footer_point.html'
+		HEADER 'templates/query_header_projection_points.html'
+		TEMPLATE 'templates/query_body_projection_points.html'
+		FOOTER 'templates/query_footer_projection_points.html'
 
 	END #layer
+
 
 	#########################
 	########                           ######
@@ -140,23 +141,22 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT p.nid AS nid, f.geom, main.hrsz_concat(p.hrsz_main, p.hrsz_fraction ) AS hrsz, p.title_angle FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid ) AS subquery USING UNIQUE nid USING srid=2370"
+		DATA "view_geom FROM main.view_parcel() USING UNIQUE view_nid USING srid=2370"
 		STATUS OFF #DEFAULT
 		TYPE POLYGON
-		TOLERANCE 1
 
 		PROJECTION
 			"init=epsg:2370"
 		END
 
 		VALIDATION
-			"selected_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"selected_nid"  "^[0-9]+$"		#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
 		#--------------------------
 		# Kiemelt elemek		
 		#--------------------------
-		CLASSITEM "nid"	
+		CLASSITEM "view_nid"	
 		CLASS
 			NAME "highlited"
 			EXPRESSION  "%selected_nid%"  
@@ -183,9 +183,9 @@ MAP
 			END
 
 			#A megjelenitendo hrsz formatuma
-			TEXT '[hrsz]'
+			TEXT '[view_hrsz]'
 			LABEL    
-				ANGLE [title_angle]    #hrsz dolesszoge
+				ANGLE [view_angle]    #hrsz dolesszoge
 				COLOR 255 0 0                           
 				SIZE 11
 
@@ -196,59 +196,19 @@ MAP
 				POSITION CR					
 				MINDISTANCE 500
 
-				STYLE
-					GEOMTRANSFORM 'labelpoly'
-					 COLOR 200 200 200
-					OFFSET 0 0
-				END #style
                          END #label
 		END #class
 	END #layer
 
-	#=================
-	#
-	# PARCEL POINT for VIEW
-	#
-	#=================
 
-	LAYER
-		NAME "parcel_point_view"
 
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT p.nid, f.geom FROM main.im_parcel AS p, main.tp_face AS f WHERE p.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
-
-		STATUS OFF #DEFAULT
-		TYPE POINT
-#		TOLERANCE 1
-
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-		CLASS
-			NAME "normal3"
-			STYLE
-				SYMBOL 'circle'
-				COLOR 255 0 0
-				OUTLINECOLOR 250 250 0
-				WIDTH 3
-			END
-#			STYLE
-#				SYMBOL 'circle'
-#				OUTLINECOLOR 0 0 0
-#				WIDTH 7
-#			END
-		END #class
-	END #layer
-
-	#/////////////////////////////////////////////////////////
-	#/////////////////////////////////////////////////////////
-	#/////////////                    ////////////////////////
-	#////////////  BUILDING /////////////////////////
-	#///////////                    //////////////////////////
-	#/////////////////////////////////////////////////////////
-	#/////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////                          //////////////////////////
+	#/////////////////////////    BUILDING     ///////////////////////////
+	#////////////////////////                          ////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
 
 	########################
 	######                                 #####
@@ -261,7 +221,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.identify_building() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		DATA "identify_geom FROM main.identify_building() USING UNIQUE identify_nid USING srid=2370"
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -302,6 +262,62 @@ MAP
 
 	END #layer
 
+	##############################
+	######                                                  #####
+	#####  QUERY PROJECTION POINTS  #####
+	####                                                       #####
+	##############################
+	LAYER
+		NAME "query_projection_points_building"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_projection_points_building(%selected_nid%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE point_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+		END
+
+		HEADER 'templates/query_header_projection_points.html'
+		TEMPLATE 'templates/query_body_projection_points.html'
+		FOOTER 'templates/query_footer_projection_points.html'
+
+	END #layer
+
+	 ############################
+	###                                                   ######
+	###   QUERY 3D OBJECT POINTS  ######
+	###                                                   ######
+	#############################
+	LAYER
+		NAME "query_object_points_building"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_object_points_building(%selected_nid%) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE point_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+		END
+
+		HEADER 'templates/query_header_object_points.html'
+		TEMPLATE 'templates/query_body_object_points.html'
+		FOOTER 'templates/query_footer_object_points.html'
+
+	END #layer
+
 	#########################
 	########                           ######
 	#######     VIEW           #######
@@ -313,7 +329,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom from (SELECT b.nid, f.geom,  main.hrsz_concat(b.hrsz_main, b.hrsz_fraction ) AS hrsz_eoi, b.title_angle FROM main.im_building AS b, main.tp_face AS f WHERE b.projection=f.gid) AS subquery USING UNIQUE nid USING srid=2370"
+		DATA "view_geom FROM main.view_building() USING UNIQUE view_nid USING srid=2370"
 
 		STATUS OFF #DEFAULT
 		TYPE POLYGON
@@ -330,7 +346,7 @@ MAP
 		#--------------------------
 		# Kiemelt elemek		
 		#--------------------------
-		CLASSITEM "nid"	
+		CLASSITEM "view_nid"	
 		CLASS
 			NAME "highlited"
 			EXPRESSION  "%selected_nid%"  
@@ -357,9 +373,9 @@ MAP
 			END
 
 			#A megjelenitendo hrsz formatuma
-			TEXT '[hrsz_eoi]'
+			TEXT '[view_hrsz_eoi]'
 			LABEL    
-				ANGLE [title_angle]    #hrsz dolesszoge
+				ANGLE [view_angle]    #hrsz dolesszoge
 
 				COLOR 255 255 0                           
 				FORCE FALSE
@@ -368,15 +384,8 @@ MAP
 				TYPE TRUETYPE
 				POSITION CR					
 				MINDISTANCE 1300
-				SIZE 15
-
-				STYLE
-					GEOMTRANSFORM 'labelpoly'
-					 COLOR 200 200 200
-					OFFSET 0 0
-				END
-                         END	
-
+				SIZE 11
+			END #label
 		END #class
 
 	END #layer
@@ -401,7 +410,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.identify_building_individual_unit() d, main.tp_face AS f WHERE d.selected_projection=f.gid) AS subquery USING UNIQUE selected_nid USING srid=2370"
+		DATA "identify_geom FROM main.identify_building_individual_unit() USING UNIQUE identify_nid USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -443,18 +452,18 @@ MAP
 
 	END #layer
 
-	########################
-	######                                 #####
-	#####  QUERY POINTS    ######
-	####                                 ######
-	######################
+	##########################
+	######                                     #####
+	#####  QUERY 3D POINTS  ######
+	####                                    ######
+	#######################
 	LAYER
-		NAME "query_point_building_individual_unit"
+		NAME "query_object_points_building_individual_unit"
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT * FROM main.query_point_building_individual_unit(%selected_nid%, %visible_building_level%) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
-
+		DATA "geom FROM (SELECT * FROM main.query_object_points_building_individual_unit(%selected_nid%, %visible_building_level%) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
+                                                  
 		STATUS OFF
 		TYPE POLYGON
 		TOLERANCE 1
@@ -466,9 +475,9 @@ MAP
 			"selected_nid"  "^[0-9]+$"						#Ez a parameter mondja meg, hogy melyik lakast keresem
 		END
 
-		HEADER 'templates/query_header_point.html'
-		TEMPLATE 'templates/query_body_point.html'
-		FOOTER 'templates/query_footer_point.html'
+		HEADER 'templates/query_header_object_points.html'
+		TEMPLATE 'templates/query_body_object_points.html'
+		FOOTER 'templates/query_footer_object_points.html'
 
 	END #layer
 
@@ -483,10 +492,13 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "geom FROM (SELECT unit.nid AS nid, face.geom AS geom, unitlevel.projection AS selected_projection, 'im_building_individual_unit' AS selected_name, unit.nid AS selected_nid, 4 AS immovable_type FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_level% ) AS subquery USING UNIQUE nid USING srid=2370"
+#		DATA "geom FROM (SELECT unit.nid AS nid, face.geom AS geom, unitlevel.projection AS selected_projection, 'im_building_individual_unit' AS selected_name, unit.nid AS selected_nid, 4 AS immovable_type FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_level% ) AS subquery USING UNIQUE nid USING srid=2370"
+
+		DATA "view_geom FROM main.view_building_individual_unit( %visible_building_level% )  USING UNIQUE view_nid USING srid=2370"
+
 		STATUS OFF
 		TYPE POLYGON
-		TOLERANCE 1
+#		TOLERANCE 1
 		PROJECTION
 			"init=epsg:2370"
 		END
@@ -498,15 +510,15 @@ MAP
 		#--------------------------
 		# Kiemelt elemek		
 		#--------------------------
-		CLASSITEM "nid"	
+		CLASSITEM "view_nid"	
 		CLASS
 			NAME "highlited"
 			EXPRESSION  "%selected_nid%"  
 			STYLE
-				COLOR 90 50 0
+				COLOR 185 74 74
 			END
 			STYLE
-				OUTLINECOLOR 45 25 0
+				OUTLINECOLOR 122 56 56
 				WIDTH 3
 			END
 		END #class
@@ -517,7 +529,7 @@ MAP
 		CLASS
 			NAME "normal"
 			STYLE
-				COLOR 179 102 0
+				COLOR 255 112 112
 			END
 			STYLE
 				OUTLINECOLOR 0 0 0
@@ -525,6 +537,122 @@ MAP
 			END
 		END #class
 	END #layer
+
+
+
+
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#////////////////////                                //////////////////////////
+	#///////////////////          POINT           ///////////////////////////
+	#//////////////////                                ////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////////////////
+
+	########################
+	######                                 #####
+	#####        IDENTIFY        ######
+	####                                 ######
+	######################
+
+	LAYER
+		NAME "identify_point"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "identify_geom FROM (SELECT * FROM main.identify_point() ) AS subquery USING UNIQUE identify_nid USING srid=2370"
+		STATUS OFF
+		TYPE POINT
+		TOLERANCE 15
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/identify_point.html'
+	END #layer
+
+	#########################
+	########                           ######
+	#######     VIEW           #######
+	######                           #######
+	######################
+
+	LAYER
+		NAME "view_point"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "view_geom FROM main.view_point()  USING UNIQUE view_nid USING srid=2370"
+
+		STATUS OFF #DEFAULT
+		TYPE POINT
+		TOLERANCE 3
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"selected_nid"  "^[0-9]+$"		#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
+		LABELMAXSCALEDENOM 800
+
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+		CLASSITEM "view_nid"	
+		CLASS
+			NAME "highlited"
+			EXPRESSION  "%selected_nid%"  
+			STYLE
+				SYMBOL 'circle'
+				COLOR 255 0 0
+				OUTLINECOLOR 255 0 0
+				WIDTH 5
+			END
+
+			TEXT '[view_name]'
+			LABEL    
+				COLOR 255 0 0                        
+
+				FORCE FALSE
+				PARTIALS TRUE
+				FONT arial
+				SIZE 9
+				TYPE TRUETYPE
+				POSITION AUTO				
+                         END #label
+		END #class
+
+		#--------------------------
+		# Normal elemek		
+		#--------------------------
+		CLASS
+			NAME "normal"
+			STYLE
+				SYMBOL 'circle'
+				COLOR 10 255 255
+				OUTLINECOLOR 0 0 0 
+				WIDTH 5
+			END
+
+			#A megjelenitendo azonosito formatuma
+			TEXT '[view_name]'
+			LABEL    
+				COLOR 0 0 0                        
+
+				FORCE FALSE
+				PARTIALS TRUE
+				FONT arial
+				SIZE 9
+				TYPE TRUETYPE
+				POSITION AUTO				
+                         END #label
+		END #class
+	END #layer
+
+
 
 
  # End of LAYER DEFINITIONS -------------------------------

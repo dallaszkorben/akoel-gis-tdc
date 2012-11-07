@@ -48,14 +48,14 @@ ALTER TYPE main.geod_position OWNER TO tdc;
 
 CREATE TYPE identify_building AS (
 	immovable_type integer,
-	selected_projection bigint,
-	selected_name text,
-	selected_nid bigint,
-	selected_settlement text,
-	selected_hrsz text,
-	selected_levels integer,
-	selected_registered_area numeric(12,1),
-	selected_measured_area numeric(12,1)
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_settlement text,
+	identify_hrsz text,
+	identify_levels integer,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
 );
 
 
@@ -66,14 +66,14 @@ ALTER TYPE main.identify_building OWNER TO tdc;
 --
 
 CREATE TYPE identify_building_individual_unit AS (
-	selected_projection bigint,
-	selected_name text,
-	selected_nid bigint,
-	selected_level numeric(4,1),
-	selected_settlement text,
-	selected_hrsz text,
-	selected_registered_area numeric(12,1),
-	selected_measured_area numeric(12,1)
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_level numeric(4,1),
+	identify_settlement text,
+	identify_hrsz text,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
 );
 
 
@@ -85,17 +85,38 @@ ALTER TYPE main.identify_building_individual_unit OWNER TO tdc;
 
 CREATE TYPE identify_parcel AS (
 	immovable_type integer,
-	selected_projection bigint,
-	selected_name text,
-	selected_nid bigint,
-	selected_settlement text,
-	selected_hrsz text,
-	selected_registered_area numeric(12,1),
-	selected_measured_area numeric(12,1)
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_settlement text,
+	identify_hrsz text,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
 );
 
 
 ALTER TYPE main.identify_parcel OWNER TO tdc;
+
+--
+-- Name: identify_point; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_point AS (
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_point_name text,
+	identify_point_description text,
+	identify_point_quality integer,
+	identify_point_measured_date date,
+	identify_point_dimension integer,
+	identify_point_x numeric(8,2),
+	identify_point_y numeric(8,2),
+	identify_point_h numeric(8,2)
+);
+
+
+ALTER TYPE main.identify_point OWNER TO tdc;
 
 --
 -- Name: query_owner; Type: TYPE; Schema: main; Owner: tdc
@@ -130,6 +151,59 @@ CREATE TYPE query_point AS (
 ALTER TYPE main.query_point OWNER TO tdc;
 
 --
+-- Name: view_building; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE view_building AS (
+	view_geom public.geometry,
+	view_nid bigint,
+	view_hrsz_eoi text,
+	view_angle numeric(4,2)
+);
+
+
+ALTER TYPE main.view_building OWNER TO tdc;
+
+--
+-- Name: view_building_individual_unit; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE view_building_individual_unit AS (
+	view_geom public.geometry,
+	view_nid bigint
+);
+
+
+ALTER TYPE main.view_building_individual_unit OWNER TO tdc;
+
+--
+-- Name: view_parcel; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE view_parcel AS (
+	view_geom public.geometry,
+	view_nid bigint,
+	view_hrsz text,
+	view_angle numeric(4,2)
+);
+
+
+ALTER TYPE main.view_parcel OWNER TO tdc;
+
+--
+-- Name: view_point; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE view_point AS (
+	view_geom public.geometry,
+	view_name text,
+	view_nid bigint
+);
+
+
+ALTER TYPE main.view_point OWNER TO tdc;
+
+--
 -- Name: hrsz_concat(integer, integer); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
@@ -160,6 +234,7 @@ COMMENT ON FUNCTION hrsz_concat(hrsz_main integer, hrsz_fraction integer) IS 'A 
 CREATE FUNCTION identify_building() RETURNS SETOF identify_building
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
   object_name text = 'im_building';
   immovable_type_1 integer = 1;
@@ -188,19 +263,20 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_2 AS immovable_type,
-      building.projection AS selected_projection,
-      object_name AS selected_name, 
-      building.nid AS selected_nid,   
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      building.nid AS identify_nid,   
   
-      building.im_settlement AS selected_settlement,
-      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
-      levels_for_building.levels AS selected_levels,
-      building.area AS selected_registered_area,
-      levels_for_building.area AS selected_measured_area
+      building.im_settlement AS identify_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS identify_hrsz,
+      levels_for_building.levels AS identify_levels,
+      building.area AS selected_identify_area,
+      levels_for_building.area AS identify_measured_area
     FROM 
        main.im_parcel parcel, 
        main.rt_right r, 
        main.im_building building,
+       main.tp_face face,
       (SELECT
         building.nid AS building_nid,
         count( building_levels.im_levels ) AS levels,
@@ -214,6 +290,7 @@ BEGIN
         face.gid=building_levels.projection
       GROUP BY building.nid) AS levels_for_building
     WHERE
+      face.gid=building.projection AND
       building.nid=levels_for_building.building_nid AND
       parcel.nid=r.im_parcel AND 
       r.rt_type=1 AND
@@ -234,19 +311,20 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_3 AS immovable_type,
-      building.projection AS selected_projection,
-      object_name AS selected_name, 
-      building.nid AS selected_nid,
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      building.nid AS identify_nid,
 
-      building.im_settlement AS selected_settlement,
-      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
-      levels_for_building.levels AS selected_levels,
-      building.area AS selected_registered_area,
-      levels_for_building.area AS selected_measured_area
+      building.im_settlement AS identify_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction )||'/'||building.hrsz_eoi AS identify_hrsz,
+      levels_for_building.levels AS identify_levels,
+      building.area AS identify_registered_area,
+      levels_for_building.area AS identify_measured_area
     FROM 
       main.im_parcel parcel, 
       main.rt_right r, 
       main.im_building building,
+      main.tp_face face,
       (SELECT
         building.nid AS building_nid,
         count( building_levels.im_levels ) AS levels,
@@ -260,6 +338,7 @@ BEGIN
         face.gid=building_levels.projection
       GROUP BY building.nid) AS levels_for_building
     WHERE
+       face.gid=building.projection AND
        building.nid=levels_for_building.building_nid AND
        parcel.nid=r.im_parcel AND 
        r.rt_type=1 AND
@@ -278,20 +357,21 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_4 AS immovable_type,
-      building.projection AS selected_projection,
-      object_name AS selected_name, 
-      building.nid AS selected_nid,
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      building.nid AS identify_nid,
 
-      building.im_settlement AS selected_settlement,
-      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS selected_hrsz,
-      levels_for_building.levels AS selected_levels,
-      building.area AS selected_registered_area,
-      levels_for_building.area AS selected_measured_area
+      building.im_settlement AS identify_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction ) AS identify_hrsz,
+      levels_for_building.levels AS identify_levels,
+      building.area AS identify_registered_area,
+      levels_for_building.area AS identify_measured_area
     FROM 
       main.im_parcel parcel, 
       main.im_building building, 
       main.im_building_individual_unit indunit, 
       main.rt_right r,
+      main.tp_face face,
       (SELECT
         building.nid AS building_nid,
         count( building_levels.im_levels ) AS levels,
@@ -305,6 +385,7 @@ BEGIN
         face.gid=building_levels.projection
       GROUP BY building.nid) AS levels_for_building
     WHERE 
+      face.gid=building.projection AND
       building.nid=levels_for_building.building_nid AND
       building.im_settlement=parcel.im_settlement AND 
       main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)=main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AND
@@ -316,6 +397,7 @@ BEGIN
 
   RETURN;
 END;
+
 
 $$;
 
@@ -329,6 +411,7 @@ ALTER FUNCTION main.identify_building() OWNER TO tdc;
 CREATE FUNCTION identify_building_individual_unit() RETURNS SETOF identify_building_individual_unit
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
   object_name text = 'im_building_individual_unit';
   output main.identify_building_individual_unit%rowtype;
@@ -336,18 +419,19 @@ BEGIN
 
   FOR output IN
     SELECT DISTINCT
-      indunitlevel.projection AS selected_projection,
-      object_name AS selected_name, 
-      indunit.nid AS selected_nid,
-      indunitlevel.im_levels AS selected_level,
-      building.im_settlement AS selected_settlement,
-      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)||'/'||building.hrsz_eoi||'/'||indunit.hrsz_unit AS selected_hrsz,
-      summary.sum_registered_area AS selected_registered_area,
-      summary.sum_measured_area AS selected_measured_area
+      face.geom AS identify_geom,
+      object_name AS identify__name, 
+      indunit.nid AS identify_nid,
+      indunitlevel.im_levels AS identify_level,
+      building.im_settlement AS identify_settlement,
+      main.hrsz_concat(building.hrsz_main, building.hrsz_fraction)||'/'||building.hrsz_eoi||'/'||indunit.hrsz_unit AS identify_hrsz,
+      summary.sum_registered_area AS identify_registered_area,
+      summary.sum_measured_area AS identify_measured_area
     FROM 
       main.im_building building, 
       main.im_building_individual_unit indunit, 
       main.im_building_individual_unit_level indunitlevel,
+      main.tp_face face,
       (SELECT
         indunit.im_building im_building, 
         indunit.hrsz_unit hrsz_unit, 
@@ -368,7 +452,10 @@ BEGIN
       summary.hrsz_unit=indunit.hrsz_unit AND
       building.nid=indunit.im_building AND
       indunit.im_building=indunitlevel.im_building AND
-      indunit.hrsz_unit=indunitlevel.hrsz_unit LOOP
+      indunit.hrsz_unit=indunitlevel.hrsz_unit AND
+      indunitlevel.projection=face.gid
+
+    LOOP
     RETURN NEXT output;
   END LOOP;
 
@@ -387,6 +474,7 @@ ALTER FUNCTION main.identify_building_individual_unit() OWNER TO tdc;
 CREATE FUNCTION identify_parcel() RETURNS SETOF identify_parcel
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
   object_name text = 'im_parcel';
   immovable_type_1 integer = 1;
@@ -406,13 +494,13 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_1 AS immovable_type,
-      parcel.projection AS selected_projection,
-      object_name AS selected_name, 
-      parcel.nid AS selected_nid,
-      parcel.im_settlement AS selected_settlement,
-      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
-      parcel.area AS selected_registered_area,
-      st_area(face.geom) AS selected_measured_area
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      parcel.nid AS identify_nid,
+      parcel.im_settlement AS identify_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS identify_hrsz,
+      parcel.area AS identify_registered_area,
+      st_area(face.geom) AS identify_measured_area
     FROM 
       main.im_parcel parcel, 
       main.rt_right r,
@@ -436,13 +524,13 @@ BEGIN
   FOR output IN
      SELECT DISTINCT
       immovable_type_2 AS immovable_type,
-      parcel.projection AS selected_projection,
-      object_name AS selected_name,
-      parcel.nid AS selected_nid,      
-      parcel.im_settlement AS selected_settlement,
-      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
-      parcel.area AS selected_registered_area,
-      st_area(face.geom) AS selected_measured_area
+      face.geom AS identify_geom,
+      object_name AS identify_name,
+      parcel.nid AS identify_nid,      
+      parcel.im_settlement AS identify_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS identify_hrsz,
+      parcel.area AS identify_registered_area,
+      st_area(face.geom) AS identify_measured_area
     FROM 
       main.im_parcel parcel, 
       main.rt_right r, 
@@ -469,13 +557,13 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_3 AS immovable_type,
-      parcel.projection AS selected_projection,
-      object_name AS selected_name, 
-      parcel.nid AS selected_nid,
-      parcel.im_settlement AS selected_settlement,
-      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
-      parcel.area AS selected_registered_area,
-      st_area(face.geom) AS selected_measured_area
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      parcel.nid AS identify_nid,
+      parcel.im_settlement AS identify_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS identify_hrsz,
+      parcel.area AS identify_registered_area,
+      st_area(face.geom) AS identify_measured_area
 
     FROM 
       main.im_parcel parcel, 
@@ -502,13 +590,13 @@ BEGIN
   FOR output IN
     SELECT DISTINCT
       immovable_type_4 AS immovable_type,
-      parcel.projection AS selected_projection,
-      object_name AS selected_name, 
-      parcel.nid AS selected_nid,
-      parcel.im_settlement AS selected_settlement,
-      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS selected_hrsz,
-      parcel.area AS selected_registered_area,
-      st_area(face.geom) AS selected_measured_area
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      parcel.nid AS identify_nid,
+      parcel.im_settlement AS identify_settlement,
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction) AS identify_hrsz,
+      parcel.area AS identify_registered_area,
+      st_area(face.geom) AS identify_measured_area
     FROM 
       main.im_parcel parcel, 
       main.im_building building, 
@@ -528,6 +616,7 @@ BEGIN
 
   RETURN;
 END; 
+
 $$;
 
 
@@ -543,6 +632,260 @@ selected_name       => "im_parcel"
 selected_id         => A földrészlet nid azonosítója (im_parcel táblában)
 immovable_type      => 1, 2, 3 vagy 4. Föggően hogy az adott földrészleten van-e épület és az milyen kapcsolatban áll a földrészlettel';
 
+
+--
+-- Name: identify_point(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_point() RETURNS SETOF identify_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.identify_point%rowtype;
+  selected_name text = 'sv_survey_point';
+BEGIN
+
+  FOR output in
+
+    SELECT DISTINCT
+      node.geom AS identify_geom,
+      selected_name AS identify_name,
+      surveypoint.nid AS identify_nid,
+      surveypoint.name AS identify_point_name,
+      surveypoint.description AS identify_point_description,
+      point.quality AS identify_point_quality,
+      document.date AS identify_point_measured_date,
+      point.dimension AS identify_point_dimension,
+      point.x AS identify_point_x,
+      point.y AS identify_point_y,
+      point.h AS identify_point_h
+    FROM 
+      main.im_building building,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT 
+        node.gid AS node_gid, 
+        max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      building.projection=face.gid AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+
+    UNION
+
+    SELECT DISTINCT
+      node.geom AS identify_geom,
+      selected_name AS identify_name,
+      surveypoint.nid AS identify_nid,
+      surveypoint.name AS identify_point_name,
+      surveypoint.description AS identify_point_description,
+      point.quality AS identify_point_quality,
+      document.date AS identify_point_measured_date,
+      point.dimension AS identify_point_dimension,
+      point.x AS identify_point_x,
+      point.y AS identify_point_y,
+      point.h AS identify_point_h
+    FROM 
+      main.im_parcel parcel,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT 
+        node.gid AS node_gid, 
+        max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      parcel.projection=face.gid AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.identify_point() OWNER TO tdc;
+
+--
+-- Name: query_object_points_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_object_points_building(selected_nid bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      building.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building building,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_nid=building.nid AND
+      building.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_object_points_building(selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_object_points_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_object_points_building_individual_unit(selected_nid bigint, visible_building_level numeric) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building_individual_unit indunit, 
+      main.im_building_individual_unit_level unitlevel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      indunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_building_level AND
+      unitlevel.im_building=indunit.im_building AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+
+$$;
+
+
+ALTER FUNCTION main.query_object_points_building_individual_unit(selected_nid bigint, visible_building_level numeric) OWNER TO tdc;
 
 --
 -- Name: query_owner_building(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
@@ -816,6 +1159,73 @@ $$;
 ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_nid bigint) OWNER TO tdc;
 
 --
+-- Name: query_point_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_point_building(selected_nid bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      building.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building building,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_nid=building.nid AND
+      building.projection=face.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_point_building(selected_nid bigint) OWNER TO tdc;
+
+--
 -- Name: query_point_building_individual_unit(bigint, numeric); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
@@ -888,9 +1298,10 @@ ALTER FUNCTION main.query_point_building_individual_unit(selected_individual_uni
 -- Name: query_point_parcel(bigint); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
-CREATE FUNCTION query_point_parcel(selected_parcel bigint) RETURNS SETOF query_point
+CREATE FUNCTION query_point_parcel(selected_nid bigint) RETURNS SETOF query_point
     LANGUAGE plpgsql
     AS $$
+
 DECLARE
   output main.query_point%rowtype;
 BEGIN
@@ -928,7 +1339,7 @@ BEGIN
       GROUP BY node.gid
       ) lastpoint
     WHERE
-      selected_parcel=parcel.nid AND
+      selected_nid=parcel.nid AND
       parcel.projection=face.gid AND
       ARRAY[face.gid] <@ volume.facelist AND
       ARRAY[node.gid] <@ face.nodelist AND
@@ -943,13 +1354,145 @@ BEGIN
   END LOOP;
 
   RETURN;
-
 END;
 
 $$;
 
 
-ALTER FUNCTION main.query_point_parcel(selected_parcel bigint) OWNER TO tdc;
+ALTER FUNCTION main.query_point_parcel(selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_projection_points_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_projection_points_building(selected_nid bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      building.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_building building,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_nid=building.nid AND
+      building.projection=face.gid AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_projection_points_building(selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_projection_points_parcel(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_projection_points_parcel(selected_nid bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      parcel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_parcel parcel,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT 
+        node.gid AS node_gid, 
+        max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      selected_nid=parcel.nid AND
+      parcel.projection=face.gid AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+
+$$;
+
+
+ALTER FUNCTION main.query_projection_points_parcel(selected_nid bigint) OWNER TO tdc;
 
 --
 -- Name: sv_point_after(); Type: FUNCTION; Schema: main; Owner: tdc
@@ -1443,6 +1986,159 @@ $$;
 
 
 ALTER FUNCTION main.tp_volume_before() OWNER TO tdc;
+
+--
+-- Name: view_building(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION view_building() RETURNS SETOF view_building
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.view_building%rowtype;
+BEGIN
+
+  FOR output in
+    SELECT 
+      face.geom AS view_geom,  
+      building.nid AS view_nid,
+      building.hrsz_eoi AS view_hrsz_eoi, 
+      building.title_angle AS view_angle 
+    FROM 
+      main.im_building AS building, 
+      main.tp_face AS face 
+    WHERE 
+      building.projection=face.gid
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.view_building() OWNER TO tdc;
+
+--
+-- Name: view_building_individual_unit(numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION view_building_individual_unit(visible_building_level numeric) RETURNS SETOF view_building_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.view_building_individual_unit%rowtype;
+BEGIN
+
+  FOR output in
+
+    SELECT 
+      face.geom AS view_geom, 
+      unit.nid AS view_nid
+    FROM 
+      main.im_building_individual_unit unit, 
+      main.im_building_individual_unit_level unitlevel, 
+      main.tp_face face 
+    WHERE 
+      unitlevel.im_levels=visible_building_level AND
+      unit.im_building=unitlevel.im_building AND 
+      unit.hrsz_unit=unitlevel.hrsz_unit AND 
+      unitlevel.projection=face.gid
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.view_building_individual_unit(visible_building_level numeric) OWNER TO tdc;
+
+--
+-- Name: view_parcel(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION view_parcel() RETURNS SETOF view_parcel
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.view_parcel%rowtype;
+BEGIN
+
+  FOR output in
+    SELECT 
+      face.geom AS view_geom, 
+      parcel.nid AS veiw_nid, 
+      main.hrsz_concat(parcel.hrsz_main, parcel.hrsz_fraction ) AS view_hrsz, 
+      parcel.title_angle AS view_angle
+    FROM 
+      main.im_parcel AS parcel, 
+      main.tp_face AS face 
+    WHERE 
+      parcel.projection=face.gid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.view_parcel() OWNER TO tdc;
+
+--
+-- Name: view_point(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION view_point() RETURNS SETOF view_point
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+  output main.view_point%rowtype;
+BEGIN
+
+  FOR output in
+    SELECT
+      node.geom AS view_geom,
+      surveypoint.name AS view_name,
+      surveypoint.nid AS view_nid
+    FROM
+      main.im_building building,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint
+    WHERE
+      building.projection=face.gid AND     
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid
+    UNION
+    SELECT DISTINCT
+      node.geom AS view_geom,
+      surveypoint.name AS view_name,
+      surveypoint.nid AS view_nid
+    FROM 
+      main.im_parcel parcel,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint
+    WHERE
+      parcel.projection=face.gid AND     
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.view_point() OWNER TO tdc;
 
 SET default_tablespace = '';
 
@@ -2424,10 +3120,10 @@ ALTER TABLE ONLY tp_volume ALTER COLUMN gid SET DEFAULT nextval('tp_volume_gid_s
 --
 
 INSERT INTO im_building VALUES (2, 100, NULL, NULL, 57, 43, 'Budapest', 124, NULL, 30.00, NULL);
-INSERT INTO im_building VALUES (1, 322, NULL, 'A', 51, 40, 'Budapest', 211, 1, 30.00, NULL);
-INSERT INTO im_building VALUES (4, 1050, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00, 1000);
 INSERT INTO im_building VALUES (5, 220, NULL, 'A', 104, 51, 'Budapest', 473, 1, 30.00, NULL);
 INSERT INTO im_building VALUES (3, 58, NULL, NULL, 63, 44, 'Budapest', 124, NULL, 30.00, NULL);
+INSERT INTO im_building VALUES (1, 322, NULL, '', 51, 40, 'Budapest', 211, 1, 30.00, NULL);
+INSERT INTO im_building VALUES (4, 1050, NULL, 'A', 67, 45, 'Budapest', 210, 1, 30.00, 1000);
 
 
 --
@@ -2742,9 +3438,9 @@ INSERT INTO sv_point VALUES (88, 88, 2, 645388.63, 227938.68, 104.80, 3, 2);
 INSERT INTO sv_point VALUES (89, 89, 2, 645379.97, 227933.54, 104.80, 3, 2);
 INSERT INTO sv_point VALUES (90, 90, 2, 645387.78, 227920.91, 104.80, 3, 2);
 INSERT INTO sv_point VALUES (82, 82, 2, 645387.78, 227920.91, 101.80, 3, 2);
-INSERT INTO sv_point VALUES (24, 24, 1, 645446.22, 227952.49, 101.66, 3, 1);
 INSERT INTO sv_point VALUES (68, 68, 2, 645426.98, 227949.64, 101.53, 3, 2);
 INSERT INTO sv_point VALUES (73, 73, 2, 645437.20, 227955.63, 108.50, 3, 2);
+INSERT INTO sv_point VALUES (24, 24, 1, 645500.58, 227983.31, 101.66, 3, 1);
 INSERT INTO sv_point VALUES (74, 74, 2, 645429.95, 227968.33, 108.50, 3, 2);
 INSERT INTO sv_point VALUES (75, 75, 2, 645419.43, 227961.90, 108.50, 3, 2);
 INSERT INTO sv_point VALUES (91, 91, 2, 645396.66, 227926.16, 104.80, 3, 2);
@@ -2988,6 +3684,7 @@ INSERT INTO sv_survey_point VALUES (151, '473/1/A hrsz-ú önálló épület fel
 --
 
 INSERT INTO tp_face VALUES (32, '{29,27,70,69}', '0103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940666666667AB22341A4703D0A9DD30B41F6285C8FC265594066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940', NULL, 'MODEL- PARCEL - NY-i negyed');
+INSERT INTO tp_face VALUES (12, '{29,27,28,24}', '0103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940EC51B89EDEB223417B14AE474BD50B418FC2F5285C8F59408FC2F528F9B22341AE47E17A7AD40B410AD7A3703D6A594066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940', NULL, 'VETÜLET- PARCEL - 211/2');
 INSERT INTO tp_face VALUES (25, '{59,61,64,62}', '01030000800100000005000000A4703D0A13B323413333333395D10B41C3F5285C8F425940EC51B89E50B32341333333333BD20B416666666666465940A4703D0A60B323418FC2F528E2D10B4114AE47E17A445940713D0AD71FB323416666666646D10B41713D0AD7A3405940A4703D0A13B323413333333395D10B41C3F5285C8F425940', NULL, 'VETÜLET- PARCEL - 472/2');
 INSERT INTO tp_face VALUES (24, '{60,59,62,63}', '0103000080010000000500000014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940A4703D0A13B323413333333395D10B41C3F5285C8F425940713D0AD71FB323416666666646D10B41713D0AD7A3405940CDCCCCCCC5B22341E17A14AE71D00B41B81E85EB5138594014AE4761B9B22341AE47E17AC0D00B410AD7A3703D3A5940', NULL, 'VETÜLET- PARCEL - 472/1');
 INSERT INTO tp_face VALUES (23, '{63,62,64,66,65}', '01030000800100000006000000CDCCCCCCC5B22341E17A14AE71D00B41B81E85EB51385940713D0AD71FB323416666666646D10B41713D0AD7A3405940A4703D0A60B323418FC2F528E2D10B4114AE47E17A445940295C8F4273B323415C8FC2F556D10B41E17A14AE4701594033333333DBB223417B14AE47E5CF0B4114AE47E17A345940CDCCCCCCC5B22341E17A14AE71D00B41B81E85EB51385940', NULL, 'VETÜLET- PARCEL - 471');
@@ -3010,7 +3707,6 @@ INSERT INTO tp_face VALUES (5, '{14,15,9,13,12}', '01030000800100000006000000295
 INSERT INTO tp_face VALUES (4, '{12,13,9,4,3,2}', '01030000800100000007000000CDCCCCCCF1B123415C8FC2F53ED10B41CDCCCCCCCC4C594085EB51B8E7B1234148E17A1488D10B41E17A14AE475159401F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940666666E60CB2234148E17A1442D20B41AE47E17A145E5940713D0AD718B223415C8FC2F5F6D10B4148E17A14AE5759408FC2F52823B223415C8FC2F5B6D10B413333333333535940CDCCCCCCF1B123415C8FC2F53ED10B41CDCCCCCCCC4C5940', NULL, 'VETÜLET- PARCEL - 122');
 INSERT INTO tp_face VALUES (3, '{7,11,10,6}', '010300008001000000050000003D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C594048E17A94C1B1234185EB51B8A2D30B41A4703D0AD7A3594000000080FDB123417B14AE4737D40B41D7A3703D0AA759409A99999920B22341713D0AD751D30B4100000000008059403D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C5940', NULL, 'VETÜLET- PARCEL - 126/1');
 INSERT INTO tp_face VALUES (1, '{1,2,3,4,5}', '01030000800100000006000000AE47E1FA4FB22341F6285C8F1ED20B4166666666665659408FC2F52823B223415C8FC2F5B6D10B413333333333535940713D0AD718B223415C8FC2F5F6D10B4148E17A14AE575940666666E60CB2234148E17A1442D20B41AE47E17A145E5940295C8F423AB2234152B81E85ADD20B41E17A14AE47615940AE47E1FA4FB22341F6285C8F1ED20B416666666666565940', NULL, 'VETÜLET- PARCEL - 123');
-INSERT INTO tp_face VALUES (12, '{29,27,28,24}', '0103000080010000000500000066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940C3F528DC95B2234185EB51B89CD40B417B14AE47E18A5940EC51B89EDEB223417B14AE474BD50B418FC2F5285C8F59400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A594066666666B0B223415C8FC2F5DCD30B41F6285C8FC2655940', NULL, 'VETÜLET- PARCEL - 211/2');
 INSERT INTO tp_face VALUES (44, '{72,73,74,75}', '010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B40', NULL, 'MODEL- BUILDING - Emelet teteje-211/1');
 INSERT INTO tp_face VALUES (42, '{75,74,78,79}', '01030000800100000005000000C3F528DC56B2234133333333CFD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40C3F528DC56B2234133333333CFD30B410000000000205B40', NULL, 'MODEL- BUILDING - Emelet É-i fala-211/1');
 INSERT INTO tp_face VALUES (39, '{75,72,73,74}', '01030000800100000005000000C3F528DC56B2234133333333CFD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B40', NULL, 'MODEL- BUILDING - Ház felső lapja-211/1');
@@ -3040,6 +3736,7 @@ INSERT INTO tp_face VALUES (56, '{88,89,90,91}', '01030000800100000005000000295C
 INSERT INTO tp_face VALUES (58, '{86,94,95,87}', '0103000080010000000500000014AE4761F3B12341295C8FC279D20B41000000000060594014AE4761F3B12341295C8FC279D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B41333333333353594014AE4761F3B12341295C8FC279D20B410000000000605940', NULL, 'MODEL- BUILDING - Belső Ház D-i fala-124');
 INSERT INTO tp_face VALUES (59, '{85,93,94,86}', '0103000080010000000500000085EB51B8ECB12341D7A3703DAAD20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4014AE4761F3B12341295C8FC279D20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B410000000000605940', NULL, 'MODEL- BUILDING - Belső Ház K-i fala-124');
 INSERT INTO tp_face VALUES (60, '{92,93,85,84}', '0103000080010000000500000052B81E05DEB1234114AE47E18AD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B41000000000060594052B81E05DEB1234114AE47E18AD20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház É-i fala-124');
+INSERT INTO tp_face VALUES (10, '{23,22,29,24,25}', '01030000800100000006000000EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B41A4703D0AD763594066666666B0B223415C8FC2F5DCD30B41F6285C8FC26559408FC2F528F9B22341AE47E17A7AD40B410AD7A3703D6A5940EC51B81E0EB32341D7A3703DEAD30B4185EB51B81E655940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940', NULL, 'VETÜLET- PARCEL - 210/2');
 INSERT INTO tp_face VALUES (63, '{84,85,86,87}', '0103000080010000000500000052B81E05DEB1234114AE47E18AD20B41333333333353594085EB51B8ECB12341D7A3703DAAD20B41000000000060594014AE4761F3B12341295C8FC279D20B410000000000605940A4703D0AE5B12341CDCCCCCC58D20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333535940', NULL, 'MODEL- BUILDING - Belső Ház alső födém-124');
 INSERT INTO tp_face VALUES (62, '{95,94,93,92}', '01030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40', NULL, 'MODEL- BUILDING - Belső Ház tető fala-124');
 INSERT INTO tp_face VALUES (64, '{21,20,124,127}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940D7A370BD75B22341713D0AD779D20B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940', NULL, 'MODEL- BUILDING - 210/1/A épület NY-i fala');
@@ -3048,10 +3745,8 @@ INSERT INTO tp_face VALUES (52, '{90,82,83,91}', '01030000800100000005000000F628
 INSERT INTO tp_face VALUES (54, '{90,89,81,82}', '01030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A400AD7A3F007B223411F85EB51ECD20B419A99999999795940F6285C8F17B223417B14AE4787D20B413333333333735940F6285C8F17B223417B14AE4787D20B413333333333335A40', NULL, 'MODEL- BUILDING - Ház É-i fala-124');
 INSERT INTO tp_face VALUES (57, '{82,81,80,83}', '01030000800100000005000000F6285C8F17B223417B14AE4787D20B4133333333337359400AD7A3F007B223411F85EB51ECD20B419A99999999795940295C8F4219B223410AD7A37015D30B419A999999997959401F85EB5129B223417B14AE47B1D20B416666666666765940F6285C8F17B223417B14AE4787D20B413333333333735940', NULL, 'MODEL- BUILDING - Ház alsó födém-124');
 INSERT INTO tp_face VALUES (68, '{127,124,125,126}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40', NULL, 'MODEL- BUILDING - 210/1/A épület felső födém');
-INSERT INTO tp_face VALUES (10, '{23,22,29,24,25}', '01030000800100000006000000EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B41A4703D0AD763594066666666B0B223415C8FC2F5DCD30B41F6285C8FC26559400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940EC51B81E0EB32341D7A3703DEAD30B4185EB51B81E655940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940', NULL, 'VETÜLET- PARCEL - 210/2');
-INSERT INTO tp_face VALUES (66, '{126,125,23,24}', '010300008001000000050000000AD7A3708CB22341B81E85EB83D30B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A59400AD7A3708CB22341B81E85EB83D30B410000000000005B40', NULL, 'MODEL- BUILDING - 210/1/A épület K-i fala');
-INSERT INTO tp_face VALUES (67, '{20,21,24,23}', '01030000800100000005000000D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940', NULL, 'MODEL- BUILDING - 210/1/A épület alsó födém');
-INSERT INTO tp_face VALUES (69, '{127,126,24,21}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40', NULL, 'MODEL- BUILDING - 210/1/A épület É-i fala');
+INSERT INTO tp_face VALUES (66, '{126,125,23,22}', '010300008001000000050000000AD7A3708CB22341B81E85EB83D30B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B41A4703D0AD76359400AD7A3708CB22341B81E85EB83D30B410000000000005B40', NULL, 'MODEL- BUILDING - 210/1/A épület K-i fala');
+INSERT INTO tp_face VALUES (67, '{20,21,22,23}', '01030000800100000005000000D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940', NULL, 'MODEL- BUILDING - 210/1/A épület alsó födém');
 INSERT INTO tp_face VALUES (71, '{106,96,100,109}', '0103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 1. lakásának D-i fala');
 INSERT INTO tp_face VALUES (72, '{108,109,100,101}', '010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 1. lakásának K-i fala');
 INSERT INTO tp_face VALUES (73, '{107,108,101,97}', '01030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940EC51B89E5FB223410000000018D30B410000000000805940EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A40', NULL, 'MODEL- BUILDING - 210/1/A épület 1. lakásának É-i fala');
@@ -3101,6 +3796,7 @@ INSERT INTO tp_face VALUES (34, '{68,71,70,69}', '010300008001000000050000005C8F
 INSERT INTO tp_face VALUES (119, '{115,104,105,112,113,103,102,114}', '0103000080010000000900000048E17A148CB22341713D0AD77DD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B89E5FB223410000000018D30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A40', NULL, '210/1 hrsz épület felső szint alapterületének vetülete');
 INSERT INTO tp_face VALUES (103, '{132,133,129,128}', '0103000080010000000500000048E17A14B2B22341A4703D0A41D10B413333333333D35A40D7A3703DC3B22341000000006CD10B413333333333D35A40D7A3703DC3B22341000000006CD10B41AE47E17A143E594048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D594048E17A14B2B22341A4703D0A41D10B413333333333D35A40', NULL, 'MODEL- BUILDING - 473/1/A épület É-i fala');
 INSERT INTO tp_face VALUES (51, '{71,68,69,70}', '01030000800100000005000000C3F528DC56B2234133333333CFD30B41D7A3703D0A8759405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC2655940666666E66BB223413D0AD7A302D40B417B14AE47E18A5940C3F528DC56B2234133333333CFD30B41D7A3703D0A875940', NULL, 'MODELL - PARCELLA - 211/1');
+INSERT INTO tp_face VALUES (69, '{127,126,22,21}', '01030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40', NULL, 'MODEL- BUILDING - 210/1/A épület É-i fala');
 INSERT INTO tp_face VALUES (46, '{76,68,69,77}', '010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940666666667AB22341A4703D0A9DD30B41F6285C8FC265594048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40', NULL, 'MODEL- BUILDING - Földszint D-i fala-211/1');
 INSERT INTO tp_face VALUES (100, '{128,131,135,132}', '0103000080010000000500000048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D5940F6285C8FBFB22341AE47E17AE6D00B410AD7A3703D3A5940F6285C8FBFB22341AE47E17AE6D00B413333333333D35A4048E17A14B2B22341A4703D0A41D10B413333333333D35A4048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D5940', NULL, 'MODEL- BUILDING - 473/1/A épület NY-i fala');
 INSERT INTO tp_face VALUES (105, '{132,135,134,133}', '0103000080010000000500000048E17A14B2B22341A4703D0A41D10B413333333333D35A40F6285C8FBFB22341AE47E17AE6D00B413333333333D35A403D0AD723D1B22341A4703D0A11D10B413333333333D35A40D7A3703DC3B22341000000006CD10B413333333333D35A4048E17A14B2B22341A4703D0A41D10B413333333333D35A40', NULL, 'MODEL- BUILDING - 473/1/A épület felső födémje');
@@ -3236,7 +3932,6 @@ INSERT INTO tp_node VALUES (124, '0101000080D7A370BD75B22341713D0AD779D20B410000
 INSERT INTO tp_node VALUES (125, '0101000080EC51B81EA3B223410AD7A370E9D20B410000000000005B40', NULL);
 INSERT INTO tp_node VALUES (126, '01010000800AD7A3708CB22341B81E85EB83D30B410000000000005B40', NULL);
 INSERT INTO tp_node VALUES (127, '0101000080CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40', NULL);
-INSERT INTO tp_node VALUES (24, '01010000800AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940', NULL);
 INSERT INTO tp_node VALUES (110, '010100008048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40', NULL);
 INSERT INTO tp_node VALUES (128, '010100008048E17A14B2B22341A4703D0A41D10B413D0AD7A3703D5940', NULL);
 INSERT INTO tp_node VALUES (129, '0101000080D7A3703DC3B22341000000006CD10B41AE47E17A143E5940', NULL);
@@ -3264,6 +3959,7 @@ INSERT INTO tp_node VALUES (134, '01010000803D0AD723D1B22341A4703D0A11D10B413333
 INSERT INTO tp_node VALUES (135, '0101000080F6285C8FBFB22341AE47E17AE6D00B413333333333D35A40', NULL);
 INSERT INTO tp_node VALUES (68, '01010000805C8FC2F565B22341EC51B81E6DD30B4152B81E85EB615940', 'BUILDING - 211/1');
 INSERT INTO tp_node VALUES (105, '010100008052B81E859AB223410AD7A3701BD30B410000000000405A40', NULL);
+INSERT INTO tp_node VALUES (24, '01010000808FC2F528F9B22341AE47E17A7AD40B410AD7A3703D6A5940', NULL);
 
 
 --
@@ -3277,7 +3973,6 @@ INSERT INTO tp_volume VALUES (40, '{34,35,36,37,38,39}', 'BUILDING - 211/1 hrsz-
 INSERT INTO tp_volume VALUES (2, '{2}', 'PARCELL - 124 hrsz', '010F00008001000000010300008001000000070000001F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940666666E60CB2234148E17A1442D20B41AE47E17A145E5940295C8F423AB2234152B81E85ADD20B41E17A14AE476159409A99999920B22341713D0AD751D30B4100000000008059403D0AD7A3E2B123413D0AD7A3B8D20B41CDCCCCCCCC7C594014AE4761C6B123419A99999977D20B4100000000007059401F85EBD1DDB1234152B81E85D1D10B41E17A14AE47515940');
 INSERT INTO tp_volume VALUES (44, '{58,59,60,61,62,63}', 'BUILDING - 124 hrsz-on Beső épület', '010F000080060000000103000080010000000500000014AE4761F3B12341295C8FC279D20B41000000000060594014AE4761F3B12341295C8FC279D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B41333333333353594014AE4761F3B12341295C8FC279D20B4100000000006059400103000080010000000500000085EB51B8ECB12341D7A3703DAAD20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4014AE4761F3B12341295C8FC279D20B41000000000060594085EB51B8ECB12341D7A3703DAAD20B4100000000006059400103000080010000000500000052B81E05DEB1234114AE47E18AD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B41000000000060594052B81E05DEB1234114AE47E18AD20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333535940A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4001030000800100000005000000A4703D0AE5B12341CDCCCCCC58D20B413333333333135A4014AE4761F3B12341295C8FC279D20B413333333333135A4085EB51B8ECB12341D7A3703DAAD20B413333333333135A4052B81E05DEB1234114AE47E18AD20B413333333333135A40A4703D0AE5B12341CDCCCCCC58D20B413333333333135A400103000080010000000500000052B81E05DEB1234114AE47E18AD20B41333333333353594085EB51B8ECB12341D7A3703DAAD20B41000000000060594014AE4761F3B12341295C8FC279D20B410000000000605940A4703D0AE5B12341CDCCCCCC58D20B41333333333353594052B81E05DEB1234114AE47E18AD20B413333333333535940');
 INSERT INTO tp_volume VALUES (43, '{52,53,55,54,56,57}', 'BUILDING - 124 hrsz-on Külső épület', '010F0000800600000001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A40F6285C8F17B223417B14AE4787D20B4133333333337359401F85EB5129B223417B14AE47B1D20B4166666666667659401F85EB5129B223417B14AE47B1D20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A401F85EB5129B223417B14AE47B1D20B416666666666765940295C8F4219B223410AD7A37015D30B419A99999999795940295C8F4219B223410AD7A37015D30B413333333333335A40010300008001000000050000000AD7A3F007B223411F85EB51ECD20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A40295C8F4219B223410AD7A37015D30B419A999999997959400AD7A3F007B223411F85EB51ECD20B419A999999997959400AD7A3F007B223411F85EB51ECD20B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A400AD7A3F007B223411F85EB51ECD20B419A99999999795940F6285C8F17B223417B14AE4787D20B413333333333735940F6285C8F17B223417B14AE4787D20B413333333333335A4001030000800100000005000000295C8F4219B223410AD7A37015D30B413333333333335A400AD7A3F007B223411F85EB51ECD20B413333333333335A40F6285C8F17B223417B14AE4787D20B413333333333335A401F85EB5129B223417B14AE47B1D20B413333333333335A40295C8F4219B223410AD7A37015D30B413333333333335A4001030000800100000005000000F6285C8F17B223417B14AE4787D20B4133333333337359400AD7A3F007B223411F85EB51ECD20B419A99999999795940295C8F4219B223410AD7A37015D30B419A999999997959401F85EB5129B223417B14AE47B1D20B416666666666765940F6285C8F17B223417B14AE4787D20B413333333333735940');
-INSERT INTO tp_volume VALUES (45, '{64,65,66,67,68,69}', 'MODEL- BUILDING - 210/1/A épület', '010F0000800600000001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940D7A370BD75B22341713D0AD779D20B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594001030000800100000005000000EC51B81EA3B223410AD7A370E9D20B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940EC51B81EA3B223410AD7A370E9D20B410000000000005B40010300008001000000050000000AD7A3708CB22341B81E85EB83D30B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A59400AD7A3708CB22341B81E85EB83D30B410000000000005B4001030000800100000005000000D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C594001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B4001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410AD7A3703D6A5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40');
 INSERT INTO tp_volume VALUES (46, '{70,71,72,73,74,75}', 'MODEL- BUILDING - UNIT - 210/1/A épület 1. lakás', '010F0000800600000001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41000000000080594014AE476176B223411F85EB5180D20B41000000000080594014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A400103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A4001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940EC51B89E5FB223410000000018D30B410000000000805940EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A4001030000800100000005000000EC51B89E5FB223410000000018D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41000000000080594014AE476176B223411F85EB5180D20B410000000000805940EC51B89E5FB223410000000018D30B41000000000080594001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCC2C5A40');
 INSERT INTO tp_volume VALUES (47, '{76,77,78,79,80,81}', 'MODEL- BUILDING - UNIT - 210/1/A épület 2. lakás', '010F0000800600000001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B410000000000405A40EC51B89E5FB223410000000018D30B410000000000405A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCCEC5A40EC51B89E5FB223410000000018D30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B89E5FB223410000000018D30B410000000000405A4048E17A148CB22341713D0AD77DD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40');
 INSERT INTO tp_volume VALUES (49, '{93,94,95,96,97,98}', 'MODEL- BUILDING - SHARED UNIT - 210/1/A épület alsó közös helyiség', '010F00008006000000010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40010300008001000000050000003D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41000000000080594048E17A148CB22341713D0AD77DD30B41000000000080594048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40010300008001000000050000008FC2F5A87AB2234148E17A1456D30B41000000000080594048E17A148CB22341713D0AD77DD30B4100000000008059403D0AD7A3A1B2234114AE47E1EAD20B410000000000805940F6285C8F90B22341CDCCCCCCC0D20B4100000000008059408FC2F5A87AB2234148E17A1456D30B4100000000008059400103000080010000000500000048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A408FC2F5A87AB2234148E17A1456D30B41CDCCCCCCCC2C5A40F6285C8F90B22341CDCCCCCCC0D20B41CDCCCCCCCC2C5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCC2C5A4048E17A148CB22341713D0AD77DD30B41CDCCCCCCCC2C5A40');
@@ -3290,6 +3985,7 @@ INSERT INTO tp_volume VALUES (42, '{46,47,48,49,50,34}', 'BUILDING - FÖLDSZINT 
 INSERT INTO tp_volume VALUES (41, '{40,41,42,43,44,45}', 'BUILDING - EMELET - 211/1 hrsz', '010F00008006000000010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A40666666667AB22341A4703D0A9DD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A4001030000800100000005000000666666667AB22341A4703D0A9DD30B410000000000205B4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40666666E66BB223413D0AD7A302D40B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B4001030000800100000005000000C3F528DC56B2234133333333CFD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A40C3F528DC56B2234133333333CFD30B410000000000205B40010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B40B81E856B58B223419A999999CDD30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A405C8FC2F565B22341EC51B81E6DD30B410000000000205B40010300008001000000050000005C8FC2F565B22341EC51B81E6DD30B410000000000205B40666666667AB22341A4703D0A9DD30B410000000000205B40666666E66BB223413D0AD7A302D40B410000000000205B40C3F528DC56B2234133333333CFD30B410000000000205B405C8FC2F565B22341EC51B81E6DD30B410000000000205B40010300008001000000050000001F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40B81E856B58B223419A999999CDD30B41D7A3703D0A475A400AD7A3706BB2234100000000FCD30B41D7A3703D0A475A4048E17A9479B22341F6285C8FA0D30B41D7A3703D0A475A401F85EB5166B22341EC51B81E73D30B41D7A3703D0A475A40');
 INSERT INTO tp_volume VALUES (48, '{99,82,83,84,85,86}', 'MODEL- BUILDING - UNIT - 210/1/A épület 2. lakás', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A403D0AD7A3A1B2234114AE47E1EAD20B410000000000405A4014AE476176B223411F85EB5180D20B410000000000405A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4014AE476176B223411F85EB5180D20B41CDCCCCCCCCEC5A403D0AD7A3A1B2234114AE47E1EAD20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40');
 INSERT INTO tp_volume VALUES (50, '{87,88,89,90,91,92}', 'MODEL- BUILDING - SHARED UNIT - 210/1/A épület 2. felső folyosó', '010F0000800600000001030000800100000005000000666666666EB223419A999999B5D20B410000000000405A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40666666666EB223419A999999B5D20B410000000000405A400103000080010000000500000052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B410000000000405A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A4001030000800100000005000000EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B410000000000405A4052B81E859AB223410AD7A3701BD30B410000000000405A40666666666EB223419A999999B5D20B410000000000405A40EC51B81E67B2234100000000E6D20B41D7A3703D0A475A40B81E856B93B22341295C8FC24BD30B410000000000405A4001030000800100000005000000B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40EC51B81E67B2234100000000E6D20B41CDCCCCCCCCEC5A40666666666EB223419A999999B5D20B41CDCCCCCCCCEC5A4052B81E859AB223410AD7A3701BD30B41CDCCCCCCCCEC5A40B81E856B93B22341295C8FC24BD30B41CDCCCCCCCCEC5A40');
+INSERT INTO tp_volume VALUES (45, '{64,65,66,67,68,69}', 'MODEL- BUILDING - 210/1/A épület', '010F0000800600000001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940D7A370BD75B22341713D0AD779D20B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB61594001030000800100000005000000EC51B81EA3B223410AD7A370E9D20B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940EC51B81EA3B223410AD7A370E9D20B410000000000005B40010300008001000000050000000AD7A3708CB22341B81E85EB83D30B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E59400AD7A3708CB22341B81E85EB83D30B41A4703D0AD76359400AD7A3708CB22341B81E85EB83D30B410000000000005B4001030000800100000005000000D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C5940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB6159400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940EC51B81EA3B223410AD7A370E9D20B411F85EB51B85E5940D7A370BD75B22341713D0AD779D20B41CDCCCCCCCC5C594001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40D7A370BD75B22341713D0AD779D20B410000000000005B40EC51B81EA3B223410AD7A370E9D20B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B40CDCCCCCC5DB22341C3F5285C19D30B410000000000005B4001030000800100000005000000CDCCCCCC5DB22341C3F5285C19D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B410000000000005B400AD7A3708CB22341B81E85EB83D30B41A4703D0AD7635940CDCCCCCC5DB22341C3F5285C19D30B4152B81E85EB615940CDCCCCCC5DB22341C3F5285C19D30B410000000000005B40');
 
 
 --
