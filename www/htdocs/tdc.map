@@ -1,7 +1,8 @@
 MAP
 	NAME		EX2_
 	IMAGETYPE	png24
-	EXTENT	419500 24000 945000 365925
+	EXTENT	645210 227752 645689 228030
+	#EXTENT	419500 24000 945000 365925
 	#EXTENT		645407 227808 645670 227959
 	SIZE		600 350
 	SHAPEPATH 	"../data"
@@ -30,7 +31,7 @@ MAP
 		METADATA
 			"ows_enable_request" "*"
 			"wms_title"		"Sajat WMS szerverem"
-			"wms_onlineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/example.map"
+			"wms_onlineresource"	"http://localhost/cgi-bin/mapserv?map=/home/akoel/Projects/tdc/svn/www/htdocs/tdc.map"
 			"wms_srs"		"EPSG:23700"
 			"wms_feature_info_mime_type" "text/html"
 		END
@@ -40,19 +41,19 @@ MAP
 		"init=epsg:2370"
 	END
 
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
 	#//////////////////////////                          //////////////////////////
 	#/////////////////////////       PARCEL     ///////////////////////////
-	#////////////////////////                          ////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#////////////////////////                          //////////////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////
 
-	########################
+	#########################
 	######                                 #####
-	#####        IDENTIFY        ######
-	####                                 ######
-	######################
+	#####        IDENTIFY        #####
+	####                                 #####
+	#####################
 
 	LAYER
 		NAME "identify_parcel"
@@ -290,7 +291,7 @@ MAP
 
 	END #layer
 
-	 ############################
+	############################
 	###                                                   ######
 	###   QUERY 3D OBJECT POINTS  ######
 	###                                                   ######
@@ -317,6 +318,37 @@ MAP
 		FOOTER 'templates/query_footer_object_points.html'
 
 	END #layer
+
+	############################
+	###                                                   ######
+	###   QUERY X3D                            ######
+	###                                                   ######
+	#############################
+	LAYER
+		NAME "query_x3d_building"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT f.geom AS geom, query_object_x3d, query_object_name, query_object_selected, query_object_nid, b.nid AS nid FROM main.query_x3d_building(%immovable_type%, %selected_nid%) d, main.tp_face f, main.im_building b WHERE d.query_base_nid=b.nid AND b.projection=f.gid  ) AS subquery  USING UNIQUE nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+	VALIDATION
+		"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
+		"immovable_type" "^[0-9]+$"	#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
+	END
+
+#		HEADER 'templates/query_header_x3d.html'
+		TEMPLATE 'templates/query_x3d.html'
+#		FOOTER 'templates/query_footer_x3d.html'
+
+	END #layer
+
 
 	#########################
 	########                           ######
@@ -390,13 +422,13 @@ MAP
 
 	END #layer
 
-	#///////////////////////////////////////////////////////////////
-	#///////////////////////////////////////////////////////////////
-	#//////////                                             ////////
-	#////////  TARSASHAZAK UNIT-JAI    /////////
-	#///////                                              //////////
-	#///////////////////////////////////////////////////////////////
-	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////
+	#/////////////////////////////////////////////
+	#//////////                                               ////////
+	#////////  TARSASHAZAK UNIT-JAI    ////////
+	#///////                                                ////////
+	#/////////////////////////////////////////
+	#////////////////////////////////////////
 
 
 	#########################
@@ -472,7 +504,7 @@ MAP
 		END
 		VALIDATION
 			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
-			"selected_nid"  "^[0-9]+$"						#Ez a parameter mondja meg, hogy melyik lakast keresem
+			"selected_nid"  "^[0-9]+$"									#Ez a parameter mondja meg, hogy melyik lakast keresem
 		END
 
 		HEADER 'templates/query_header_object_points.html'
@@ -541,13 +573,13 @@ MAP
 
 
 
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
 	#////////////////////                                //////////////////////////
 	#///////////////////          POINT           ///////////////////////////
 	#//////////////////                                ////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
 
 	########################
 	######                                 #####
