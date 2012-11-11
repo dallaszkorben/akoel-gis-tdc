@@ -130,7 +130,6 @@ MAP
 
 	END #layer
 
-
 	#########################
 	########                           ######
 	#######     VIEW           #######
@@ -203,13 +202,13 @@ MAP
 
 
 
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
 	#//////////////////////////                          //////////////////////////
 	#/////////////////////////    BUILDING     ///////////////////////////
 	#////////////////////////                          ////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
-	#//////////////////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////////
 
 	########################
 	######                                 #####
@@ -318,37 +317,6 @@ MAP
 		FOOTER 'templates/query_footer_object_points.html'
 
 	END #layer
-
-	############################
-	###                                                   ######
-	###   QUERY X3D                            ######
-	###                                                   ######
-	#############################
-	LAYER
-		NAME "query_x3d_building"
-
-		CONNECTIONTYPE postgis
-		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "geom FROM (SELECT f.geom AS geom, query_object_x3d, query_object_name, query_object_selected, query_object_nid, b.nid AS nid FROM main.query_x3d_building(%immovable_type%, %selected_nid%) d, main.tp_face f, main.im_building b WHERE d.query_base_nid=b.nid AND b.projection=f.gid  ) AS subquery  USING UNIQUE nid USING srid=2370"
-
-		STATUS OFF
-		TYPE POLYGON
-		TOLERANCE 1
-		PROJECTION
-			"init=epsg:2370"
-		END
-
-	VALIDATION
-		"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy melyik foldteruletet keresem
-		"immovable_type" "^[0-9]+$"	#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
-	END
-
-#		HEADER 'templates/query_header_x3d.html'
-		TEMPLATE 'templates/query_x3d.html'
-#		FOOTER 'templates/query_footer_x3d.html'
-
-	END #layer
-
 
 	#########################
 	########                           ######
@@ -686,6 +654,45 @@ MAP
 
 
 
+
+	#////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
+	#////////////////////                                //////////////////////////
+	#///////////////////          KÖZÖS          ///////////////////////////
+	#//////////////////                                ////////////////////////////
+	#////////////////////////////////////////////////////////////////
+	#////////////////////////////////////////////////////////////////
+
+	############################
+	###                                                   ######
+	###   QUERY X3D                            ######
+	###                                                   ######
+	#############################
+	LAYER
+		NAME "query_x3d"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "query_base_geom FROM main.query_x3d( %immovable_type%, %selected_name%, %selected_nid%, %selected_x%, %selected_y% )   USING UNIQUE query_object_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POINT								#Ez fontos!!!
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+	VALIDATION
+		"selected_name"  "^.+$"				#Ez a parameter mondja meg, hogy mi az kivalasztott objektum neve (im_parcel, im_building...)
+		"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy mi az kivalasztott objektum azonositoja
+        "selected_x"  "^.+$"					#Ez a parameter mondja meg, hogy melyik X pozicióban válaszottam ki az elemet
+        "selected_y"  "^.+$"					#Ez a parameter mondja meg, hogy melyik Y pozicióban válaszottam ki az elemet
+		"immovable_type" "^[0-9]+$"	#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
+	END
+
+	TEMPLATE 'templates/query_x3d.html'
+
+	END #layer
 
  # End of LAYER DEFINITIONS -------------------------------
 
