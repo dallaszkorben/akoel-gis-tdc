@@ -68,7 +68,7 @@
 		var queryOwnerBuildingLayer;
 		var queryProjectionPointsBuildingLayer;
 		var queryObjectPointsBuildingLayer;
-		var queryX3DBuildingLayer;
+//		var queryX3DBuildingLayer;
 
 		//Szint megjelenítést választó mezők
 		var buildingLevelSelector;
@@ -116,7 +116,6 @@
 	    
 //		var attribControl = new OpenLayers.Control.Attribution();
 //		map.addControl( attribControl );
-
 
 			//--------------------------------------------------------------------------------------------
 			// A lathatosagi layerek
@@ -218,13 +217,6 @@
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
 
-			queryX3DBuildingLayer= new OpenLayers.Layer.WMS( 
-				"query_object_points_building", 
-				urlMap,
-				{ layers:  "query_x3d_building", format: 'image/png' },
-				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
-			);
-
 			//Lekérdező layer-ek
 			map.addLayer(identifyLayer);
 			map.addLayer(queryOwnerBuildingIndividualUnitLayer);
@@ -234,7 +226,6 @@
 			map.addLayer(queryOwnerBuildingLayer);
 			map.addLayer(queryProjectionPointsBuildingLayer);
 			map.addLayer(queryObjectPointsBuildingLayer);
-			map.addLayer(queryX3DBuildingLayer);
 
 			//Megjelenithető layer-ek
 			//Fontos a sorrend. A kovetkezo mindig az elozo felett van
@@ -243,6 +234,7 @@
 			map.addLayer(buildingViewLayer);
 			map.addLayer(buildingIndividualUnitViewLayer);
 			map.addLayer(pointViewLayer);
+
 
 			//===========	//
 			//				//
@@ -292,7 +284,7 @@
 				FEATURE_COUNT: 1,
 				WIDTH: map.size.w,
 				HEIGHT: map.size.h });
-				OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ highlightResult(response, e.xy )}});			
+				OpenLayers.Request.POST({ url: getInfoCommonURL, callback: function(response){ selection(response, e.xy )}});			
 			});
 
 		   	 //Terkep merete a maximalisra-Maximum ekkora lehet egy pixel
@@ -322,10 +314,14 @@
 
 		}; //Vége az incializáló függvénynek
 
-		//-------------------------------------------------
-		// Kiemelo fuggveny+azonosítás
-		//-------------------------------------------------
-		function highlightResult(response, xy){
+		//||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||                                               |||||||||
+		//|||||||||    Kiemelo fuggveny+azonosítás  |||||||||
+		//||||||||                                                |||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||||||||||||||||||||||||||||||||||||||||||
+		function selection(response, xy){
 			var xmlDoc = $.parseXML( "<block>" + response.responseText + "</block>" );
 			var objs = $( $(xmlDoc)[0] ).find("object" );
 			var toDiv = "<html><head></head><body>Kivalasztott elemek<br>"
@@ -364,11 +360,11 @@
 				//Jelzem, hogy meg nem volt kivalasztott elem
 				hasSelected = false;
 
-				        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+				        ///////////////////////////////////////////////////////////////////////////////////
 				      ////////////////////                                                       ////////////////////////////////
 				    ////////////////////                        POINT                    ////////////////////////////////
-				  /////////////////////                                                       ////////////////////////////////
-				////////////////////////////////////////////////////////////////////////////////////////////////////////////
+				  ////////////////////                                                       ////////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////
 				for( i = 0; i< objs.length; i++){
 
 					//Álatlános paraméterek, Ezek már itt is léteznek
@@ -459,6 +455,7 @@
 					if( identify_name == "im_building_individual_unit"  && buildingIndividualUnitViewLayer.getVisibility()){
 
 						//Ezek társasházi lakás specifikus paraméterek, csak itt lehetek biztos benne, hogy léteznek
+						immovable_type = $(objs[ i ]).find("immovable_type")[0].textContent;
 						identify_level = $(objs[ i ]).find("identify_level")[0].textContent;
 						identify_settlement = $(objs[ i ]).find("identify_settlement")[0].textContent;
 						identify_hrsz = $(objs[ i ]).find("identify_hrsz")[0].textContent;
@@ -546,11 +543,19 @@
 
 							//A query elküldése
 							OpenLayers.Request.POST({ url: getPointInfo, callback: function(response){ 
-
 								//Pontok megjelenitese
 								document.getElementById( "objectPointsListDIV" ).innerHTML = response.responseText;
 							}});
 
+							//=========================
+							//=                                     =
+							//=  X3D Létrehozása          =
+							//=                                     =
+							//=========================
+
+							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+
+							//Akkor a kijelolest allitja
 							buildingIndividualUnitViewLayer.params.selected_nid =  identify_nid;
 
 							//Jelzem, hogy van kivalasztott elem
@@ -686,11 +691,11 @@
 							document.getElementById( "projectionPointsListDIV" ).innerHTML = response.responseText;
 						}});
 
-						//=========================
-						//=                                                            =
+						//===================================
+						//=                                                     =
 						//=  3D objektum Pontok megjelenitese =
-						//=                                                            =
-						//=========================
+						//=                                                     =
+						//===================================
 						queryObjectPointsBuildingLayer.params.selected_nid=identify_nid;
 
 						//Owner list query  a kivalasztott objektumrol
@@ -720,19 +725,7 @@
 						//=                                     =
 						//=========================
 
-//						var projPos = map.getLonLatFromPixel( {x:xy.x, y:xy.y} );
-
-						//Egy php script fogja legyartani az x3d fajlt az elkuldott koordinata es kivalasztott objektum alapjan
-						$.ajax({
-							type: "GET",
-							url: "http://localhost/tdc/htdocs/proba.php",
-							contentType: "text/html",
-							dataType: "html",
-							data: { 	selected_name: identify_name, selected_nid: identify_nid, immovable_type: immovable_type, x: xy.x, y: xy.y, lon: projPos.lon, lat: projPos.lat },
-							async:false,
-							success: successX3D,
-							error: errorX3D
-						});
+						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
 
 ///////////////////
 
@@ -870,6 +863,14 @@
 							document.getElementById( "projectionPointsListDIV" ).innerHTML = response.responseText;
 						}});
 
+						//=========================
+						//=                                     =
+						//=  X3D Létrehozása          =
+						//=                                     =
+						//=========================
+
+						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+
 						//Akkor a kijelolest allitja
 						parcelViewLayer.params.selected_nid =  identify_nid;
 
@@ -882,15 +883,17 @@
 
 			redraw();
 
-		}//highlightResult(
+		}//selection(
 
-		//
-		// Buborék megjelenítése
-		//
+		//||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||                                               |||||||||
+		//|||||||||        Buborék megjelenítése       |||||||||
+		//||||||||                                                |||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||||||||||||||||||||||||||||||||||||||||||
 		function showBobble( result, position ){
-
 			if( document.forms.control['bubble'].checked ){
-
 				//Eredmeny egy buborekba a kivalasztott ponthoz
 				popup = new OpenLayers.Popup.FramedCloud(
 					"chick", 
@@ -901,12 +904,31 @@
 					true,
 					null
 				);
-
 				//Elhelyezi a buborekot-a terkepen
 				map.addPopup( popup );
-
 			}
+		}
 
+		//||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||                                               |||||||||
+		//|||||||||               X3D gyártása            |||||||||
+		//||||||||                                                |||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||||||||||||||||||||||||||||||||||||||||||
+		function generateX3D( identify_name, identify_nid, immovable_type, xy, projPos ){
+
+			//Egy php script fogja legyartani az x3d fajlt az elkuldott koordinata es kivalasztott objektum alapjan
+			$.ajax({
+				type: "GET",
+				url: "http://localhost/tdc/htdocs/x3dcreator.php",
+				contentType: "text/html",
+				dataType: "html",
+				data: { 	selected_name: identify_name, selected_nid: identify_nid, immovable_type: immovable_type, x: xy.x, y: xy.y, lon: projPos.lon, lat: projPos.lat },
+				async:false,
+				success: successX3D,
+				error: errorX3D
+			});
 		}
 
 		//
@@ -915,43 +937,24 @@
 		function successX3D( data, status, req ){
 
 			if( status =="success")
-
 				//Link megjelenitese
 				var linkText = "<a id='x3dhref' href='" + data + "'>X3D modell</a>";
 				document.getElementById( "X3DLinkDIV" ).innerHTML = linkText;
 
 				//Ha engedélyezem a modell direkt megjelenítését
 				if( document.forms.control['3dmodel'].checked ){
-
 					window.location=document.getElementById('x3dhref').href;
-//					window.open( data );
 				}
-
 			}
 
 		//
 		//Sikertelen X3D gyártás után
 		//
 		function errorX3D( data, status, req ){
-			alert( 'hiba: ' + data.responseText + ' status: ' + status);
+			alert( 'Hiba az ajax híváskor: \n' + data.responseText + 'status: ' + status + '\n' + 'req: ' + req.responseText);
 		}
 
-/*
-var escaped_one_to_xml_special_map = {
-	'&#39;': '\'',
-	'&quot;': '"',
-	'&lt;': '<',
-	'&gt;': '>'
-};
 
-
-function decodeXml(string) {
-	return string.replace(/(&#39;|&lt;|&gt;|&quot;)/g,
-		function(str, item) {
-			return escaped_one_to_xml_special_map[item];
-		});
-}
-*/
 		//
 		// Alapállapotba állítom a mezőket
 		//

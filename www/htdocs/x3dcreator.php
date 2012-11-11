@@ -8,14 +8,14 @@
 	$parcel_normal_color = "<Material transparency='0.1' diffuseColor='0.0 0.4 0.0' emissiveColor='0.0 0.4 0.0'/>";
 	$parcel_normal_color = "<Material transparency='0.1' diffuseColor='0.0 0.6 0.0' emissiveColor='0.0 0.6 0.1'/>";
 
-	$building_normal_color =  "<Material transparency='0.0' diffuseColor='0.0 0.2 0.2' emissiveColor='0.0 0.2 0.2'/>";
-	$building_selected_color = "<Material transparency='0.0' diffuseColor='0.1 0.4 0.4' emissiveColor='0.1 0.4 0.4'/>";
+	$building_normal_color =  "<Material transparency='0.6' diffuseColor='0.0 0.2 0.6' emissiveColor='0.0 0.2 0.6'/>";
+	$building_selected_color = "<Material transparency='0.6' diffuseColor='0.1 0.4 0.6' emissiveColor='0.1 0.4 0.6'/>";
 
-	$building_individual_unit_normal_color = " <Material transparency='0' diffuseColor='0.2 0 0' emissiveColor='0.2 0 0'/>";
-	$building_individual_unit_selected_color = " <Material transparency='0' diffuseColor='0.4 0 0' emissiveColor='0.4 0 0'/>";
+	$building_individual_unit_normal_color = " <Material transparency='0' diffuseColor='0.2 0 0' emissiveColor='0.4 0 0'/>";
+	$building_individual_unit_selected_color = " <Material transparency='0' diffuseColor='0.4 0 0' emissiveColor='0.8 0 0'/>";
 
-	$building_shared_unit_normal_color = "<Material transparency='0' diffuseColor='0.2 0.4 0.3' emissiveColor='0.2 0.4 0.3'/>";
-	$building_shared_unit_selected_color = "<Material transparency='0' diffuseColor='0.4 0.8 0.6' emissiveColor='0.4 0.8 0.6'/>";
+	$building_shared_unit_normal_color = "<Material  diffuseColor='0.2 0.4 0.3' emissiveColor='0.2 0.4 0.3'/>";
+	$building_shared_unit_selected_color = "<Material diffuseColor='0.4 0.8 0.6' emissiveColor='0.4 0.8 0.6'/>";
 
 	$point_normal_color = "<Material diffuseColor='1.0 1.0 0.0' emissiveColor='1.0 1.0 0.0'/>";
 	$point_selected_color = "<Material diffuseColor='2.0 2.0 0.0' emissiveColor='2.0 2.0 0.0'/>";
@@ -34,14 +34,16 @@
 	//Uj map objektum letrehozasa	a map file alapján
 	$map_path="";
 	$map_file="tdc.map";	
-	$map = ms_newMapObj($map_path.$map_file);		
-
+	$map = ms_newMapObj( $map_path.$map_file );		
 
 	//Paraméterek átadása a MAP fájlnak
-	$selected_layer=$map->getLayerByName( "query_x3d_building" );
+	$selected_layer=$map->getLayerByName( "query_x3d" );
 
 	//DATA változó kiolvasása a MAP fájlból és a paraméterek behelyettesítése
-	$data = str_replace( "%selected_nid%", $selected_nid, $selected_layer->data );
+	$data = str_replace( "%selected_name%", "'".$selected_name."'", $selected_layer->data );
+	$data = str_replace( "%selected_nid%", $selected_nid, $data );
+    $data = str_replace( "%selected_x%", $lon, $data );
+    $data = str_replace( "%selected_y%", $lat, $data );
 	$data = str_replace( "%immovable_type%", $immovable_type, $data );
 	$selected_layer->data = $data;
 
@@ -112,6 +114,21 @@
 					"			<Shape>\n" .
 					"				<Appearance>\n".
 					"					". ( ( $query_object_selected == 't' ) ? $building_selected_color : $building_normal_color ) .  "\n" .
+					"				</Appearance>\n" .
+					"				" .  $query_object_x3d . "\n" .
+					"			</Shape>\n" .
+					"		</Transform>" ;
+
+		//-----------------------------------------------------------------
+		//-- Building parcellájához tartozó épületek individual unitjai --
+		//-=---------------------------------------------------------------
+			}else if( $query_object_name == 'im_building_individual_unit' ){
+
+				$x3d_string .= "\n" .
+					"		<Transform>\n" .
+					"			<Shape>\n" .
+					"				<Appearance>\n".
+					"					". ( ( $query_object_selected == 't' ) ? $building_individual_unit_selected_color : $building_individual_unit_normal_color ) .  "\n" .
 					"				</Appearance>\n" .
 					"				" .  $query_object_x3d . "\n" .
 					"			</Shape>\n" .
