@@ -153,13 +153,43 @@ MAP
 			"selected_nid"  "^[0-9]+$"		#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
+		PROCESSING "CLOSE_CONNECTION=DEFER"
+		PROCESSING "LABEL_NO_CLIP=True"
+
+#		FEATURE
+#			POINTS
+#				0 0
+#			END
+#			TEXT "hello"
+#		END
+
+		#-----------------------------
+		#-----------------------------
+		# ---- ELEM KIEMELÉS ----
+		#-----------------------------
+		#-----------------------------
+
 		#--------------------------
-		# Kiemelt elemek		
+		# Utak
 		#--------------------------
-		CLASSITEM "view_nid"	
 		CLASS
 			NAME "highlited"
-			EXPRESSION  "%selected_nid%"  
+			EXPRESSION( '[view_nid]'='%selected_nid%' AND '[view_cultivation_nid]'='11')
+			STYLE
+				COLOR 100 100 100				
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 3
+			END
+		END #class
+
+		#--------------------------
+		# Egyéb földrészletek
+		#--------------------------
+		CLASS
+			NAME "highlited"
+			EXPRESSION( '[view_nid]'='%selected_nid%' AND '[view_cultivation_nid]'!='11')
 			STYLE
 				COLOR 80 150 80
 			END
@@ -169,11 +199,51 @@ MAP
 			END
 		END #class
 
+		#-------------------------------
+		#-------------------------------
+		# ---- NORMÁL ELEMEK ----
+		#-------------------------------
+		#-------------------------------
+
 		#--------------------------
-		# Normal elemek		
+		#  Utak
 		#--------------------------
 		CLASS
+			NAME "ut"
+			
+			EXPRESSION( '[view_cultivation_nid]'='11' ) 
+			STYLE
+				COLOR 150 150 150
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[view_hrsz]  (Út)'
+			LABEL  
+
+				ANGLE [view_angle]    #hrsz dolesszoge
+				COLOR 255 0 0                           
+				SIZE 11
+
+				FORCE FALSE
+				PARTIALS FALSE
+				FONT arial-bold
+				TYPE TRUETYPE
+				POSITION CC					
+				MINDISTANCE 50
+
+			END #label
+		END #class
+
+		#----------------------------
+		#  Egyéb földrészletek
+		#----------------------------
+		CLASS
 			NAME "normal"
+			EXPRESSION( '[view_cultivation_nid]'!='11' ) 
 			STYLE
 				COLOR 100 255 100
 			END
@@ -193,10 +263,10 @@ MAP
 				PARTIALS FALSE
 				FONT arial-bold
 				TYPE TRUETYPE
-				POSITION CR					
+				POSITION CC					
 				MINDISTANCE 500
 
-                         END #label
+			END #label
 		END #class
 	END #layer
 
@@ -343,6 +413,8 @@ MAP
 			"selected_nid"  "^[0-9]+$"	#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
 		END
 
+		PROCESSING "LABEL_NO_CLIP=True"
+
 		#--------------------------
 		# Kiemelt elemek		
 		#--------------------------
@@ -380,9 +452,9 @@ MAP
 				COLOR 255 255 0                           
 				FORCE FALSE
 				PARTIALS FALSE
-				FONT arial
+				FONT arial-bold
 				TYPE TRUETYPE
-				POSITION CR					
+				POSITION CC			
 				MINDISTANCE 1300
 				SIZE 11
 			END #label
@@ -492,13 +564,10 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-#		DATA "geom FROM (SELECT unit.nid AS nid, face.geom AS geom, unitlevel.projection AS selected_projection, 'im_building_individual_unit' AS selected_name, unit.nid AS selected_nid, 4 AS immovable_type FROM main.im_building_individual_unit unit, main.im_building_individual_unit_level unitlevel, main.tp_face face WHERE unit.im_building=unitlevel.im_building AND unit.hrsz_unit=unitlevel.hrsz_unit AND unitlevel.projection=face.gid AND unitlevel.im_levels=%visible_building_level% ) AS subquery USING UNIQUE nid USING srid=2370"
-
 		DATA "view_geom FROM main.view_building_individual_unit( %visible_building_level% )  USING UNIQUE view_nid USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
-#		TOLERANCE 1
 		PROJECTION
 			"init=epsg:2370"
 		END
@@ -506,6 +575,8 @@ MAP
 			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
 			"selected_nid"  "^[0-9]+$"					#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
 		END
+
+		PROCESSING "LABEL_NO_CLIP=True" 
 
 		#--------------------------
 		# Kiemelt elemek		
@@ -535,6 +606,22 @@ MAP
 				OUTLINECOLOR 0 0 0
 				WIDTH 1
 			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[view_hrsz_unit]'
+			LABEL    
+				ANGLE [view_angle]    #unit dolesszoge
+
+				COLOR 255 255 0                           
+				FORCE FALSE
+				PARTIALS FALSE
+				FONT arial-bold
+				TYPE TRUETYPE
+				POSITION CC			
+				MINDISTANCE 1300
+				SIZE 11
+			END #label
+
 		END #class
 	END #layer
 

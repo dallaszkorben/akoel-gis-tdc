@@ -68,7 +68,6 @@
 		var queryOwnerBuildingLayer;
 		var queryProjectionPointsBuildingLayer;
 		var queryObjectPointsBuildingLayer;
-//		var queryX3DBuildingLayer;
 
 		//Szint megjelenítést választó mezők
 		var buildingLevelSelector;
@@ -236,11 +235,11 @@
 			map.addLayer(pointViewLayer);
 
 
-			//===========	//
-			//				//
-			// Esemenykezeles	//
-			//				//
-			//===========	//
+			//==================//
+			//				                //
+			// Esemenykezeles	   //
+			//				               //
+			//=================//
 	    
 			//---------------------------------------------------
 			//Pozicio megjelenitese esemény
@@ -763,10 +762,12 @@
 						identify_hrsz = $(objs[ i ]).find("identify_hrsz")[0].textContent;
 						identify_registered_area = $(objs[ i ]).find("identify_registered_area")[0].textContent;
 						identify_measured_area = $(objs[ i ]).find("identify_measured_area")[0].textContent;
+						identify_cultivation_name = $(objs[ i ]).find("identify_cultivation_name")[0].textContent;
 
 						//Buborkék előkészítése		
 						var result = "Város: <b>" + identify_settlement + "</b><br>";
 						result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
+						result += "Művelési ág: <b>" + identify_cultivation_name  + "</b><br>";
 						result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
 						result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2<br>";
 	
@@ -1094,7 +1095,7 @@
 									<!-- 3D model automatikus megjelenítésének ki/be kapcsolása -->
 									<tr>
 										<td>
-											<input type="checkbox" name="3dmodel" value="3dmodel" checked>3D modell utomatikus megjelenése
+											<input type="checkbox" name="3dmodel" value="3dmodel" unchecked>3D modell utomatikus megjelenése
 										</td>
 									</tr>
 								</table>
