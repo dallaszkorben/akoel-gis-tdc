@@ -11,6 +11,8 @@ MAP
 
 	TEMPLATEPATTERN 'example*'
 
+	CONFIG "MS_ERRORFILE" "tmp/ms_error.txt"
+
 	#Azert kell, hogy a layer-ek atlatszoak legyenek
 	OUTPUTFORMAT
 		NAME "png"
@@ -40,6 +42,201 @@ MAP
 	PROJECTION
 		"init=epsg:2370"
 	END
+
+
+
+
+
+	#////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
+	#//////////////////////////                          //////////////////////////
+	#/////////////////////////   UNDERPASS   ///////////////////////////
+	#////////////////////////                          //////////////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////
+
+	########################
+	######                                 #####
+	#####        IDENTIFY        ######
+	####                                 ######
+	######################
+
+	LAYER
+		NAME "identify_underpass"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "identify_geom FROM main.identify_underpass() USING UNIQUE identify_nid USING srid=2370"
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/identify_underpass.html'
+	END #layer
+
+	#########################
+	########                           ######
+	#######     VIEW           #######
+	######                           #######
+	######################
+
+	LAYER
+		NAME "view_underpass"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "view_geom FROM main.view_underpass(  %visible_underpass_level% ) USING UNIQUE view_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		VALIDATION
+			"visible_underpass_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik aluljárószint latszodhat
+			"selected_nid"  "^[0-9]+$"										#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+		END
+
+		LABELMAXSCALEDENOM 1140
+		PROCESSING "LABEL_NO_CLIP=True"
+
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+		CLASSITEM "view_nid"	
+		CLASS
+			NAME "highlited"
+			EXPRESSION  "%selected_nid%"  
+			STYLE
+				COLOR 80 80 150
+			END
+			STYLE
+				OUTLINECOLOR 0 0 100
+				WIDTH 3
+			END
+		END #class
+
+		#--------------------------
+		# Normál elemek		
+		#--------------------------
+		CLASS
+			NAME "normal"
+			STYLE
+				COLOR 000 100 255
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[view_hrsz]'
+			LABEL    
+				ANGLE [view_angle]    #hrsz dolesszoge
+
+				COLOR 255 255 0                           
+#				FORCE FALSE
+#				PARTIALS FALSE
+				FONT arial-bold
+				TYPE TRUETYPE
+				POSITION CC			
+#				MINDISTANCE 30
+				SIZE 11
+			END #label
+		END #class
+
+	END #layer
+
+
+	#////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
+	#////////////                                                            /////////////////////
+	#///////////  UNDERPASS INDIVIDUAL UNITS   /////////////////////
+	#//////////                                                           /////////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////
+
+	#########################
+	########                           ######
+	#######     VIEW           #######
+	######                           #######
+	######################
+
+	LAYER
+		NAME "view_underpass_individual_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
+		DATA "view_geom FROM main.view_underpass_individual_unit( %visible_underpass_level% )  USING UNIQUE view_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_underpass_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik aluljárószint latszodhat
+			"selected_nid"  "^[0-9]+$"										#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
+		END
+
+		LABELMAXSCALEDENOM 800
+		PROCESSING "LABEL_NO_CLIP=True" 
+
+		#--------------------------
+		# Kiemelt elemek		
+		#--------------------------
+#		CLASSITEM "view_nid"	
+#		CLASS
+#			NAME "highlited"
+#			EXPRESSION  "%selected_nid%"  
+#			STYLE
+#				COLOR 185 74 74
+#			END
+#			STYLE
+#				OUTLINECOLOR 122 56 56
+#				WIDTH 3
+#			END
+#		END #class
+
+		#--------------------------
+		# Normál elemek		
+		#--------------------------
+		CLASS
+			NAME "normal"
+			STYLE
+				COLOR 255 112 112
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END
+
+			#A megjelenitendo hrsz formatuma
+			TEXT '[view_hrsz_unit]'
+			LABEL    
+				ANGLE [view_angle]    #unit dolesszoge
+
+				COLOR 255 255 0                           
+#				FORCE FALSE
+#				PARTIALS FALSE
+				FONT arial-bold
+				TYPE TRUETYPE
+				POSITION CC			
+#				MINDISTANCE 30
+				SIZE 11
+			END #label
+
+		END #class
+	END #layer
+
+
+
 
 	#////////////////////////////////////////////////////////////////////
 	#///////////////////////////////////////////////////////////////////
@@ -156,13 +353,6 @@ MAP
 		PROCESSING "CLOSE_CONNECTION=DEFER"
 		PROCESSING "LABEL_NO_CLIP=True"
 
-#		FEATURE
-#			POINTS
-#				0 0
-#			END
-#			TEXT "hello"
-#		END
-
 		#-----------------------------
 		#-----------------------------
 		# ---- ELEM KIEMELÉS ----
@@ -170,7 +360,7 @@ MAP
 		#-----------------------------
 
 		#--------------------------
-		# Utak
+		# Kiemelt Utak
 		#--------------------------
 		CLASS
 			NAME "highlited"
@@ -185,7 +375,7 @@ MAP
 		END #class
 
 		#--------------------------
-		# Egyéb földrészletek
+		# Kiemelt Egyéb földrészletek
 		#--------------------------
 		CLASS
 			NAME "highlited"
@@ -210,7 +400,7 @@ MAP
 		#--------------------------
 		CLASS
 			NAME "ut"
-			
+			MINSCALEDENOM 283			  #Egy bizonyos nagyítás felett eltünik az út és takarás nélkül látszik az aluljáró
 			EXPRESSION( '[view_cultivation_nid]'='11' ) 
 			STYLE
 				COLOR 150 150 150
@@ -227,14 +417,12 @@ MAP
 				ANGLE [view_angle]    #hrsz dolesszoge
 				COLOR 255 0 0                           
 				SIZE 11
-
-				FORCE FALSE
-				PARTIALS FALSE
+#				FORCE FALSE
+#				PARTIALS FALSE
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-				MINDISTANCE 50
-
+#				MINDISTANCE 50
 			END #label
 		END #class
 
@@ -258,14 +446,12 @@ MAP
 				ANGLE [view_angle]    #hrsz dolesszoge
 				COLOR 255 0 0                           
 				SIZE 11
-
 				FORCE FALSE
 				PARTIALS FALSE
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-				MINDISTANCE 500
-
+#				MINDISTANCE 500
 			END #label
 		END #class
 	END #layer
@@ -450,12 +636,12 @@ MAP
 				ANGLE [view_angle]    #hrsz dolesszoge
 
 				COLOR 255 255 0                           
-				FORCE FALSE
-				PARTIALS FALSE
+#				FORCE FALSE
+#				PARTIALS FALSE
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC			
-				MINDISTANCE 1300
+#				MINDISTANCE 1300
 				SIZE 11
 			END #label
 		END #class
@@ -572,8 +758,8 @@ MAP
 			"init=epsg:2370"
 		END
 		VALIDATION
-			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"	#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
-			"selected_nid"  "^[0-9]+$"					#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
+			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik epuletszint latszodhat
+			"selected_nid"  "^[0-9]+$"									#Ez a parameter mondja meg, hogy melyik unitot emeljuk ki
 		END
 
 		PROCESSING "LABEL_NO_CLIP=True" 
@@ -613,12 +799,12 @@ MAP
 				ANGLE [view_angle]    #unit dolesszoge
 
 				COLOR 255 255 0                           
-				FORCE FALSE
-				PARTIALS FALSE
+#				FORCE FALSE
+#				PARTIALS FALSE
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC			
-				MINDISTANCE 1300
+#				MINDISTANCE 1300
 				SIZE 11
 			END #label
 
@@ -669,18 +855,17 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
-		DATA "view_geom FROM main.view_point()  USING UNIQUE view_nid USING srid=2370"
+		DATA "view_geom FROM main.view_point( %visible_building_level%, %visible_underpass_level% )  USING UNIQUE view_nid USING srid=2370"
 
-		STATUS OFF #DEFAULT
+		STATUS OFF
 		TYPE POINT
-		TOLERANCE 3
-
 		PROJECTION
 			"init=epsg:2370"
 		END
-
 		VALIDATION
-			"selected_nid"  "^[0-9]+$"		#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"selected_nid"  "^[0-9]+$"										#!!! Ez kell, mert kulonben nem lenne ervenyes az EXPRESSION parameteratadas
+			"visible_underpass_level"  "^[-]*[0-9][.][0-9]+$"		#Ez a parameter mondja meg, hogy melyik aluljárószint látszódhat
+			"visible_building_level"  "^[-]*[0-9][.][0-9]+$"			#Ez a parameter mondja meg, hogy melyik épületszint létszódhat
 		END
 
 		LABELMAXSCALEDENOM 800
@@ -709,7 +894,7 @@ MAP
 				SIZE 9
 				TYPE TRUETYPE
 				POSITION AUTO				
-                         END #label
+			END #label
 		END #class
 
 		#--------------------------
@@ -728,14 +913,13 @@ MAP
 			TEXT '[view_name]'
 			LABEL    
 				COLOR 0 0 0                        
-
 				FORCE FALSE
 				PARTIALS TRUE
 				FONT arial
 				SIZE 9
 				TYPE TRUETYPE
 				POSITION AUTO				
-                         END #label
+			END #label
 		END #class
 	END #layer
 

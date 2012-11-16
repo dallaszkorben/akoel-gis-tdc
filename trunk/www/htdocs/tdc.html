@@ -57,6 +57,8 @@
 		var parcelViewLayer;
 		var buildingViewLayer;
 		var buildingIndividualUnitViewLayer;
+		var underpassIndividualUnitViewLayer;
+		var underpassViewLayer;
 		var pointViewLayer;
 
 		//Query layer
@@ -86,7 +88,6 @@
 			//maxExtent: new OpenLayers.Bounds(410000, 45000, 950000, 360000), //Ez a teljes magyarorszag
 //			maxExtent: new OpenLayers.Bounds(645407, 227808, 645670, 227959),  //Ez pedig a kijelolt telek
 				maxExtent: new OpenLayers.Bounds(645200, 227760, 645700, 228050),  //Ez pedig a kijelolt telek
-				//maxExtent: new OpenLayers.Bounds(645200, 227760, 645700, 228050),  //Ez pedig a kijelolt telek
 			//maxResolution: 901, //Ez magyarorszagra vonatkozo meret
 				maxResolution: 0.8,
 				units: "m"
@@ -128,7 +129,7 @@
 				"Földrészlet", 
 				urlMap,
 				{ layers:  "view_parcel", format: 'image/png' },//, selected_nid: null },
-				{ isBaseLayer: false, visibility: true, opacity: 1.0, transparent: 'true' }
+				{ isBaseLayer: false, visibility: true, opacity: 0.6, transparent: 'true' }
 			);
 
 			buildingViewLayer = new OpenLayers.Layer.WMS( 
@@ -142,6 +143,20 @@
 				"Lakások", 
 				urlMap,
 				{ layers:  "view_building_individual_unit", format: 'image/png' },//, visible_building_level: '0.0', selected_nid: null },
+				{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
+			);
+
+			underpassIndividualUnitViewLayer = new OpenLayers.Layer.WMS( 
+				"Aluljáró-üzletek", 
+				urlMap,
+				{ layers:  "view_underpass_individual_unit", format: 'image/png' },
+				{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
+			);
+
+			underpassViewLayer = new OpenLayers.Layer.WMS( 
+				"Aluljáró", 
+				urlMap,
+				{ layers:  "view_underpass", format: 'image/png' },
 				{ isBaseLayer: false, alpha:true, visibility: true, opacity: 1.0, transparent: 'true' }				
 			);
 
@@ -228,6 +243,8 @@
 
 			//Megjelenithető layer-ek
 			//Fontos a sorrend. A kovetkezo mindig az elozo felett van
+			map.addLayer(underpassViewLayer);
+			map.addLayer(underpassIndividualUnitViewLayer);
 			map.addLayer(emptyBaseLayer);
 			map.addLayer(parcelViewLayer);		
 			map.addLayer(buildingViewLayer);
@@ -296,6 +313,8 @@
 				//Ha valtoztatom a megjelenítendő épület szintet, akkor kirajzoltatom az aktuálisat
 				buildingIndividualUnitViewLayer.params.visible_building_level=buildingLevelSelector.options[buildingLevelSelector.selectedIndex].value;
 
+				pointViewLayer.params.visible_building_level=buildingLevelSelector.options[buildingLevelSelector.selectedIndex].value;
+
 				//Ezt majd egy kicsit kidolgozottabban kell megoldani  TICKET
 				clearAndRedraw();
 			}
@@ -303,9 +322,15 @@
 			//Aluljáró szintmegjelenítést választó mező
 			underpassLevelSelector = document.getElementById("underpass_level_selection");
 			underpassLevelSelector.onchange=function(){
-			//Ha valtoztatom a megjelenítendő épület szintet, akkor kirajzoltatom az aktuálisat
-//			buildingIndividualUnitViewLayer.params.visible_building_level=underpassLevelSelector.options[underpassLevelSelector.selectedIndex].value;
-//			buildingIndividualUnitViewLayer.redraw( true );
+			
+				//Ha valtoztatom a megjelenítendő aluljáró szintet, akkor kirajzoltatom az aktuálisat
+				underpassIndividualUnitViewLayer.params.visible_underpass_level=underpassLevelSelector.options[underpassLevelSelector.selectedIndex].value;
+				underpassViewLayer.params.visible_underpass_level=underpassLevelSelector.options[underpassLevelSelector.selectedIndex].value;
+
+				pointViewLayer.params.visible_underpass_level=underpassLevelSelector.options[underpassLevelSelector.selectedIndex].value;
+
+				//Ezt majd egy kicsit kidolgozottabban kell megoldani  TICKET
+				clearAndRedraw();
 			}
  
 			//Alapállapotot állítom a mezőket
@@ -425,6 +450,7 @@
 						document.getElementById( "objectDataDIV" ).innerHTML = result;
 
 						//Akkor a kijelolest allitja
+
 						pointViewLayer.params.selected_nid =  identify_nid;
 
 						//Jelzem, hogy van kivalasztott elem
@@ -963,6 +989,11 @@
 
 			//Parameterek a MAP fajlnak, ha WMS layert hasznalok MapServer helyett, mert akkor nem ismeri fel, hogy a parametereket at kell adni
 			buildingIndividualUnitViewLayer.params.visible_building_level='0.0';
+			underpassIndividualUnitViewLayer.params.visible_underpass_level='-1.0';
+			underpassViewLayer.params.visible_underpass_level=underpassIndividualUnitViewLayer.params.visible_underpass_level;
+
+			pointViewLayer.params.visible_underpass_level=underpassIndividualUnitViewLayer.params.visible_underpass_level;
+			pointViewLayer.params.visible_building_level=buildingIndividualUnitViewLayer.params.visible_building_level;
 
 			clearSelection();
 	
@@ -980,7 +1011,7 @@
 			//Beállítom az aluljáró szintválasztót -1
 			for( var i=0; i<underpassLevelSelector.length; i++){
 
-				if( underpassLevelSelector.options[i].value == "-1.0" ){
+				if( underpassLevelSelector.options[i].value == underpassIndividualUnitViewLayer.params.visible_underpass_level ){
 					underpassLevelSelector.selectedIndex=i;
 					break;
 				}
@@ -1007,6 +1038,7 @@
 		function clearSelection(){
 		
 			buildingIndividualUnitViewLayer.params.selected_nid = null
+			underpassIndividualUnitViewLayer.params.selected_nid = null
 			parcelViewLayer.params.selected_nid =  null;
 			buildingViewLayer.params.selected_nid =  null;
 			pointViewLayer.params.selected_nid =  null;
@@ -1018,6 +1050,8 @@
 			parcelViewLayer.redraw(true);
 			buildingViewLayer.redraw(true);
 			buildingIndividualUnitViewLayer.redraw(true);
+			underpassIndividualUnitViewLayer.redraw(true);
+			underpassViewLayer.redraw(true);
 		}
 
 		/** Törli az adatokat a DIV-ekből **/
@@ -1073,8 +1107,8 @@
 						</td>
 						<td>
 							<select id="underpass_level_selection">
-								<option value="-2.0">-2. Szint</option>
 								<option value="-1.0">-1. Szint</option>
+								<option value="-2.0">-2. Szint</option>
 							</select>
 						</td>
 					</tr>
