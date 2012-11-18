@@ -20,6 +20,15 @@
 	$point_normal_color = "<Material diffuseColor='1.0 1.0 0.0' emissiveColor='1.0 1.0 0.0'/>";
 	$point_selected_color = "<Material diffuseColor='2.0 2.0 0.0' emissiveColor='2.0 2.0 0.0'/>";
 
+	$underpass_normal_color =  "<Material transparency='0.6' diffuseColor='0.4 0.6 1.0' emissiveColor='0.4 0.6 1.0'/>";
+	$underpass_selected_color = "<Material transparency='0.6' diffuseColor='0.5 0.5 0.0' emissiveColor='0.5 0.5 0.0'/>";
+
+	$underpass_individual_unit_normal_color =  "<Material transparency='0' diffuseColor='0.1 0.2 0.8' emissiveColor='0.1 0.2 0.8'/>";
+	$underpass_individual_unit_selected_color = "<Material transparency='0' diffuseColor='0.5 0.5 0.0' emissiveColor='0.5 0.5 0.0'/>";
+
+	$underpass_shared_unit_normal_color =  "<Material transparency='0' diffuseColor='0.0 0.4 0.4' emissiveColor='0.0 0.4 0.4'/>";
+	$underpass_shared_unit_selected_color = "<Material transparency='0' diffuseColor='0.5 0.5 0.0' emissiveColor='0.5 0.5 0.0'/>";
+
 	//
 	// Paraméterek átvétele
 	//
@@ -40,6 +49,8 @@
 	$selected_layer=$map->getLayerByName( "query_x3d" );
 
 	//DATA változó kiolvasása a MAP fájlból és a paraméterek behelyettesítése
+	$immovable_type =  empty($immovable_type) ? "null" : $immovable_type;
+
 	$data = str_replace( "%selected_name%", "'".$selected_name."'", $selected_layer->data );
 	$data = str_replace( "%selected_nid%", $selected_nid, $data );
     $data = str_replace( "%selected_x%", $lon, $data );
@@ -80,6 +91,7 @@
 			if( $query_object_name == "sv_survey_point" ){
 
 				$x3d_string .= "\n" .
+					"		<!-- Point: ".$query_object_nid." -->\n" .
 					"		<Transform translation='" . $query_object_x3d . "'>\n" .
 					"			<Shape>\n" .
 					"				<Appearance>\n" .
@@ -95,6 +107,7 @@
 			}else if( $query_object_name == "im_parcel" ){
 
 				$x3d_string .= "\n" .
+					"		<!-- Parcel: ".$query_object_nid." -->\n" .
 					"		<Transform>\n" .
 					"			<Shape>\n" . 
 					"				<Appearance>\n" .
@@ -110,6 +123,7 @@
 			}else if( $query_object_name == 'im_building' ){
 
 				$x3d_string .= "\n" .
+					"		<!-- Building: ".$query_object_nid." -->\n" .
 					"		<Transform>\n" .
 					"			<Shape>\n" .
 					"				<Appearance>\n".
@@ -119,12 +133,13 @@
 					"			</Shape>\n" .
 					"		</Transform>" ;
 
-		//-----------------------------------------------------------------
-		//-- Building parcellájához tartozó épületek individual unitjai --
-		//-=---------------------------------------------------------------
+			//-----------------------------------------------------------------
+			//-- Building parcellájához tartozó épületek individual unitjai --
+			//-=---------------------------------------------------------------
 			}else if( $query_object_name == 'im_building_individual_unit' ){
 
 				$x3d_string .= "\n" .
+					"		<!-- Building individual unit: ".$query_object_nid." -->\n" .
 					"		<Transform>\n" .
 					"			<Shape>\n" .
 					"				<Appearance>\n".
@@ -133,6 +148,55 @@
 					"				" .  $query_object_x3d . "\n" .
 					"			</Shape>\n" .
 					"		</Transform>" ;
+
+			//-----------------------------------------------
+			//-- Aluljáró                                               --
+			//-----------------------------------------------  
+			}else if( $query_object_name == 'im_underpass' ){
+
+				$x3d_string .= "\n" .
+					"		<!-- Underpass: ".$query_object_nid." -->\n" .
+					"		<Transform>\n" .
+					"			<Shape>\n" .
+					"				<Appearance>\n".
+					"					". ( ( $query_object_selected == 't' ) ? $underpass_selected_color : $underpass_normal_color ) .  "\n" .
+					"				</Appearance>\n" .
+					"				" .  $query_object_x3d . "\n" .
+					"			</Shape>\n" .
+					"		</Transform>" ;
+
+			//-----------------------------------------------------------------
+			//-- Aluljáró individual unitjai                                               --
+			//-=---------------------------------------------------------------
+			}else if( $query_object_name == 'im_underpass_individual_unit' ){
+
+				$x3d_string .= "\n" .
+					"		<!-- Underpass individual unit: ".$query_object_nid." -->\n" .
+					"		<Transform>\n" .
+					"			<Shape>\n" .
+					"				<Appearance>\n".
+					"					". ( ( $query_object_selected == 't' ) ? $underpass_individual_unit_selected_color : $underpass_individual_unit_normal_color ) .  "\n" .
+					"				</Appearance>\n" .
+					"				" .  $query_object_x3d . "\n" .
+					"			</Shape>\n" .
+					"		</Transform>" ;
+
+			//-----------------------------------------------------------------
+			//-- Aluljáró shared unitjai                                                   --
+			//-=---------------------------------------------------------------
+			}else if( $query_object_name == 'im_underpass_shared_unit' ){
+
+				$x3d_string .= "\n" .
+					"		<!-- Underpass shared unit: ".$query_object_nid." -->\n" .
+					"		<Transform>\n" .
+					"			<Shape>\n" .
+					"				<Appearance>\n".
+					"					". ( ( $query_object_selected == 't' ) ? $underpass_shared_unit_selected_color : $underpass_shared_unit_normal_color ) .  "\n" .
+					"				</Appearance>\n" .
+					"				" .  $query_object_x3d . "\n" .
+					"			</Shape>\n" .
+					"		</Transform>" ;
+
 			}// if
 
 		endforeach;
@@ -157,7 +221,7 @@
 
 	}else{
 
-		$x3d_string = "Hiba történt.\nNem volt találat.\n" . $result;
+		$x3d_string = "Hiba történt.\nNem volt találat.\n" . $result."\n".$data;
 
 	}
 

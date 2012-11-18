@@ -55,11 +55,97 @@ MAP
 	#///////////////////////////////////////////////////////////////
 	#//////////////////////////////////////////////////////////////
 
-	
+    ##########################
+    ##########   Underpass   ########
 	#########################
-	########                           ######
+	######                                  #####
+	#####        IDENTIFY        ######
+	####                                  ######
+	######################
+
+	LAYER
+		NAME "identify_underpass"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "identify_geom FROM main.identify_underpass() USING UNIQUE identify_nid USING srid=2370"
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		#Lekerdezeshez szukseges tempalte fajl, specialis formaban
+		TEMPLATE 'templates/identify_underpass.html'
+	END #layer
+
+    ##########################
+    ##########   Underpass   ########
+	#########################
+	######                                   #####
+	#####     QUERY OWNER   ######
+	####                                 ######
+	######################
+
+	LAYER
+		NAME "query_owner_underpass"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_owner_underpass( %selected_nid% ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"selected_nid"  "^[0-9]+$"						#Ez a parameter mondja meg, hogy melyik aluljárót keresem
+		END
+
+		HEADER 'templates/query_header_owner.html'
+		TEMPLATE 'templates/query_body_owner.html'
+		FOOTER 'templates/query_footer_owner.html'
+
+	END #layer
+
+    ##########################
+    ##########   Underpass   ########
+	##########################
+	######                                     #####
+	#####  QUERY 3D POINTS  ######
+	####                                    ######
+	#######################
+	LAYER
+		NAME "query_object_points_underpass"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_object_points_underpass( %selected_nid% ) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
+                                                  
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"selected_nid"  "^[0-9]+$"										#Ez a parameter mondja meg, hogy melyik aluljárót keresem
+		END
+
+		HEADER 'templates/query_header_object_points.html'
+		TEMPLATE 'templates/query_body_object_points.html'
+		FOOTER 'templates/query_footer_object_points.html'
+
+	END #layer
+
+    ##########################
+    ##########   Underpass   ########
+	#########################
+	########                         #######
 	#######     VIEW           #######
-	######                           #######
+	######                          #######
 	######################
 
 	LAYER
@@ -100,10 +186,11 @@ MAP
 			EXPRESSION( '%visible_object%'>='1' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_underpass' ) 
 			NAME "normal"
 			STYLE
-				COLOR 149 150 52
+				COLOR 0 13 143
 			END
 			STYLE
-				OUTLINECOLOR 74 75 23
+#				OUTLINECOLOR 0 4 42
+				OUTLINECOLOR 255 255 0
 				WIDTH 3
 			END
 			TEXT '[view_hrsz]'
@@ -124,10 +211,11 @@ MAP
 			EXPRESSION( '%visible_object%'>='2' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_underpass_levels' ) 
 			NAME "normal"
 			STYLE
-				COLOR 138 83 6
+				COLOR 62 26 203
 			END
 			STYLE
-				OUTLINECOLOR 47 35 7
+#				OUTLINECOLOR 22 10 73
+				OUTLINECOLOR 255 255 0
 				WIDTH 3
 			END
 		END #class
@@ -139,11 +227,12 @@ MAP
 			EXPRESSION( '%visible_object%'>='3' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_underpass_individual_unit' ) 
 			NAME "normal"
 			STYLE
-				COLOR 92 68 9
+				COLOR 0 90 109
 			END
 			STYLE
-				OUTLINECOLOR 53 38 3
-				WIDTH 1
+#				OUTLINECOLOR 0 32 39
+				OUTLINECOLOR 255 255 0
+				WIDTH 3
 			END
 			TEXT '[view_hrsz]'
 			LABEL    
@@ -163,10 +252,11 @@ MAP
 			EXPRESSION( '%visible_object%'>='3' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_underpass_shared_unit' ) 
 			NAME "normal"
 			STYLE
-				COLOR 111 43 6
+				COLOR 113 0 130
 			END
 			STYLE
-				OUTLINECOLOR 68 26 3
+#				OUTLINECOLOR 40 0 46
+				OUTLINECOLOR 255 255 0
 				WIDTH 3
 			END
 			TEXT '[view_hrsz]'
@@ -277,7 +367,197 @@ MAP
 
 
 
+	#////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
+	#/////////////////                                                          /////////////////
+	#////////////////  UNDERPASS  INDIVIDUAL UNIT   /////////////////
+	#///////////////                                                          /////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////
 
+    ##########################
+    ###### Underpass individual unit #####
+	#########################
+	########                           ######
+	#######     IDENTIFY     ######
+	######                           ######
+	#####################
+
+	LAYER
+		NAME "identify_underpass_individual_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "identify_geom FROM main.identify_underpass_individual_unit() USING UNIQUE identify_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		TEMPLATE 'templates/identify_underpass_individual_unit.html'
+	END #layer
+
+    ##########################
+    ###### Underpass individual unit #####
+	#########################
+	######                                   #####
+	#####     QUERY OWNER   ######
+	####                                 ######
+	######################
+
+	LAYER
+		NAME "query_owner_underpass_individual_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_owner_underpass_individual_unit( %selected_nid%, '%visible_underpass_level%' ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_underpass_level"  "^.+$"				#Ez a parameter mondja meg, hogy melyik aluljárószint latszodhat
+			"selected_nid"  "^[0-9]+$"						#Ez a parameter mondja meg, hogy melyik közös tulajdonú helyiséget keresem
+		END
+
+		HEADER 'templates/query_header_owner.html'
+		TEMPLATE 'templates/query_body_owner.html'
+		FOOTER 'templates/query_footer_owner.html'
+
+	END #layer
+
+    ##########################
+    ###### Underpass individual unit #####
+	##########################
+	######                                     #####
+	#####  QUERY 3D POINTS  ######
+	####                                    ######
+	#######################
+	LAYER
+		NAME "query_object_points_underpass_individual_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_object_points_underpass_individual_unit( %selected_nid%, '%visible_underpass_level%' ) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
+                                                  
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_underpass_level"  "^.+$"								#Ez a parameter mondja meg, hogy melyik aluljáró szint latszodik
+			"selected_nid"  "^[0-9]+$"										#Ez a parameter mondja meg, hogy melyik üzlethelyiséget keresem
+		END
+
+		HEADER 'templates/query_header_object_points.html'
+		TEMPLATE 'templates/query_body_object_points.html'
+		FOOTER 'templates/query_footer_object_points.html'
+
+	END #layer
+
+	#////////////////////////////////////////////////////////////////////
+	#///////////////////////////////////////////////////////////////////
+	#/////////////////                                                          /////////////////
+	#////////////////      UNDERPASS  SHARED UNIT      /////////////////
+	#///////////////                                                          /////////////////
+	#///////////////////////////////////////////////////////////////
+	#//////////////////////////////////////////////////////////////
+
+    ##########################
+    ####### Underpass shared unit   #####
+	#########################
+	########                           ######
+	#######     IDENTIFY    #######
+	######                           #######
+	######################
+
+	LAYER
+		NAME "identify_underpass_shared_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "identify_geom FROM main.identify_underpass_shared_unit() USING UNIQUE identify_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+		TEMPLATE 'templates/identify_underpass_shared_unit.html'
+	END #layer
+
+    ##########################
+    ####### Underpass shared unit   #####
+	#########################
+	######                                   #####
+	#####     QUERY OWNER   ######
+	####                                 ######
+	######################
+
+	LAYER
+		NAME "query_owner_underpass_shared_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_owner_underpass_shared_unit( %selected_nid%, '%visible_underpass_level%' ) d, main.tp_face AS f WHERE d.found_projection=f.gid ) AS subquery  USING UNIQUE owner_name USING srid=2370"
+
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_underpass_level"  "^.+$"				#Ez a parameter mondja meg, hogy melyik aluljárószint latszodhat
+			"selected_nid"  "^[0-9]+$"						#Ez a parameter mondja meg, hogy melyik közös tulajdonú helyiséget keresem
+		END
+
+		HEADER 'templates/query_header_owner.html'
+		TEMPLATE 'templates/query_body_owner.html'
+		FOOTER 'templates/query_footer_owner.html'
+
+	END #layer
+
+    ##########################
+    ####### Underpass shared unit   #####
+	##########################
+	######                                     #####
+	#####  QUERY 3D POINTS  ######
+	####                                    ######
+	#######################
+	LAYER
+		NAME "query_object_points_underpass_shared_unit"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "geom FROM (SELECT * FROM main.query_object_points_underpass_shared_unit( %selected_nid%, '%visible_underpass_level%' ) d, main.tp_face AS f WHERE d.found_projection=f.gid  ) AS subquery  USING UNIQUE point_name USING srid=2370"
+                                                  
+		STATUS OFF
+		TYPE POLYGON
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+		VALIDATION
+			"visible_underpass_level"  "^.+$"								#Ez a parameter mondja meg, hogy melyik aluljáró szint latszodik
+			"selected_nid"  "^[0-9]+$"										#Ez a parameter mondja meg, hogy melyik üzlethelyiséget keresem
+		END
+
+		HEADER 'templates/query_header_object_points.html'
+		TEMPLATE 'templates/query_body_object_points.html'
+		FOOTER 'templates/query_footer_object_points.html'
+
+	END #layer
 
 	#////////////////////////////////////////////////////////////////////
 	#///////////////////////////////////////////////////////////////////
@@ -287,6 +567,8 @@ MAP
 	#///////////////////////////////////////////////////////////////
 	#//////////////////////////////////////////////////////////////
 
+    ##########################
+    ##########  Parcel  ###########
 	#########################
 	######                                 #####
 	#####        IDENTIFY        #####
@@ -310,10 +592,12 @@ MAP
 		TEMPLATE 'templates/identify_parcel.html'
 	END #layer
 
-	########################
-	######                                 #####
-	#####  QUERY OWNER    ######
-	####                                 ######
+    ##########################
+    ##########  Parcel  ###########
+	#########################
+	######                                  #####
+	#####     QUERY OWNER    #####
+	####                                    #####
 	######################
 
 	LAYER
@@ -340,6 +624,8 @@ MAP
 
 	END #layer
 
+    ################################
+    ##########  Parcel  #################
 	################################
 	######                                                   ######
 	#####  QUERY PROJECTION POINTS ######
@@ -368,6 +654,8 @@ MAP
 
 	END #layer
 
+    ##########################
+    ##########  Parcel  ###########
 	#########################
 	########                           ######
 	#######     VIEW           #######
@@ -520,7 +808,6 @@ MAP
 	END #layer
 
 
-
 	#///////////////////////////////////////////////////////////////////
 	#///////////////////////////////////////////////////////////////////
 	#//////////////////////////                          //////////////////////////
@@ -529,8 +816,10 @@ MAP
 	#//////////////////////////////////////////////////////////////////
 	#//////////////////////////////////////////////////////////////////
 
-	########################
-	######                                 #####
+    ##########################
+    #########  Building  ###########
+	#########################
+	######                                   #####
 	#####        IDENTIFY        ######
 	####                                 ######
 	######################
@@ -551,9 +840,11 @@ MAP
 		TEMPLATE 'templates/identify_building.html'
 	END #layer
 
-	########################
-	######                                 #####
-	#####  QUERY OWNER    ######
+    ##########################
+    #########  Building  ###########
+	#########################
+	######                                  #####
+	#####  QUERY OWNER     ######
 	####                                 ######
 	######################
 
@@ -581,11 +872,13 @@ MAP
 
 	END #layer
 
+    ##############################
+    ###########  Building  #############
 	##############################
-	######                                                  #####
-	#####  QUERY PROJECTION POINTS  #####
-	####                                                       #####
-	##############################
+	######                                                    ####
+	#####  QUERY PROJECTION POINTS  ####
+	####                                                      ####
+	############################
 	LAYER
 		NAME "query_projection_points_building"
 
@@ -609,11 +902,13 @@ MAP
 
 	END #layer
 
-	############################
-	###                                                   ######
-	###   QUERY 3D OBJECT POINTS  ######
-	###                                                   ######
-	#############################
+    ###########################
+    #########  Building  ############
+	###########################
+	###                                                   ####
+	###   QUERY 3D OBJECT POINTS  ####
+	###                                                 ####
+	#########################
 	LAYER
 		NAME "query_object_points_building"
 
@@ -931,7 +1226,7 @@ MAP
 		DATA "identify_geom FROM (SELECT * FROM main.identify_point('%visible_building_level%', '%visible_underpass_level%' ) ) AS subquery USING UNIQUE identify_nid USING srid=2370"
 		STATUS OFF
 		TYPE POINT
-		TOLERANCE 15
+		TOLERANCE 6
 		PROJECTION
 			"init=epsg:2370"
 		END
@@ -947,7 +1242,7 @@ MAP
 	########                           ######
 	#######     VIEW           #######
 	######                           #######
-	######################
+	#######################
 
 	LAYER
 		NAME "view_point"

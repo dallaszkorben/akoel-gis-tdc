@@ -51,22 +51,31 @@
 		var map;
 		var popup;
 
-		//View layer
+		//View layer-ed
 		var emptyBaseLayer;
 		var viewParcelLayer;
 		var viewBuildingLayer;
 		var viewUnderpassLayer;
 		var viewPointLayer;
 
-		//Query layer
+		//Query layer-es
 		var identifyLayer;
-		var queryOwnerBuildingIndividualUnitLayer;
-		var queryObjectPointsBuildingIndividualUnitLayer;
-		var queryOwnerParcelLayer;
-		var queryProjectonPointParcelLayer;
+
+		var queryOwnerUnderpassLayer;
 		var queryOwnerBuildingLayer;
-		var queryProjectionPointsBuildingLayer;
+		var queryOwnerParcelLayer;
+		var queryOwnerUnderpassIndividualUnitLayer;
+		var queryOwnerBuildingIndividualUnitLayer;
+
 		var queryObjectPointsBuildingLayer;
+		var queryObjectPointsBuildingIndividualUnitLayer;
+		var queryObjectPointsUnderpassLayer;
+		var queryObjectPointsUnderpassIndividualUnitLayer;
+		var queryObjectPointsUnderpassSharedUnitLayer;
+
+		var queryProjectonPointParcelLayer;
+		var queryProjectionPointsBuildingLayer;
+
 
 		//Szint megjelenítést választó mezők
 		var buildingLevelSelector;
@@ -171,21 +180,7 @@
 			identifyLayer = new OpenLayers.Layer.WMS( 
 				"Közös kérés", 
 				urlMap,
-				{ layers:  "identify_point,identify_building_individual_unit,identify_building,identify_parcel", format: 'image/png' },
-				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
-			);
-
-			queryOwnerBuildingIndividualUnitLayer = new OpenLayers.Layer.WMS( 
-				"query_owner_building_individual_unit", 
-				urlMap,
-				{ layers:  "query_owner_building_individual_unit", format: 'image/png' },
-				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
-			);
-
-			queryObjectPointsBuildingIndividualUnitLayer = new OpenLayers.Layer.WMS( 
-				"query_object_points_building_individual_unit", 
-				urlMap,
-				{ layers:  "query_object_points_building_individual_unit", format: 'image/png' },
+				{ layers:  "identify_point,identify_building_individual_unit,identify_building,identify_underpass_individual_unit,identify_underpass_shared_unit,identify_underpass,identify_parcel", format: 'image/png' },
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
 
@@ -195,25 +190,34 @@
 				{ layers:  "query_owner_parcel", format: 'image/png' },
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
-		
-			queryProjectionPointsParcelLayer= new OpenLayers.Layer.WMS( 
-				"query_projection_points_parcel", 
-				urlMap,
-				{ layers:  "query_projection_points_parcel", format: 'image/png' },
-				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
-			);
-
 			queryOwnerBuildingLayer= new OpenLayers.Layer.WMS( 
 				"query_owner_building", 
 				urlMap,
 				{ layers:  "query_owner_building", format: 'image/png' },
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
-
-			queryProjectionPointsBuildingLayer= new OpenLayers.Layer.WMS( 
-				"query_projection_points_building", 
+			queryOwnerUnderpassLayer= new OpenLayers.Layer.WMS( 
+				"query_owner_underpass", 
 				urlMap,
-				{ layers:  "query_projection_points_building", format: 'image/png' },
+				{ layers:  "query_owner_underpass", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryOwnerUnderpassIndividualUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_owner_underpass_individual_unit", 
+				urlMap,
+				{ layers:  "query_owner_underpass_individual_unit", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryOwnerUnderpassSharedUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_owner_underpass_shared_unit", 
+				urlMap,
+				{ layers:  "query_owner_underpass_shared_unit", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryOwnerBuildingIndividualUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_owner_building_individual_unit", 
+				urlMap,
+				{ layers:  "query_owner_building_individual_unit", format: 'image/png' },
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
 
@@ -223,16 +227,62 @@
 				{ layers:  "query_object_points_building", format: 'image/png' },
 				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
 			);
+			queryObjectPointsBuildingIndividualUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_object_points_building_individual_unit", 
+				urlMap,
+				{ layers:  "query_object_points_building_individual_unit", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryObjectPointsUnderpassLayer= new OpenLayers.Layer.WMS( 
+				"query_object_points_underpass", 
+				urlMap,
+				{ layers:  "query_object_points_underpass", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryObjectPointsUnderpassIndividualUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_object_points_underpass_individual_unit", 
+				urlMap,
+				{ layers:  "query_object_points_underpass_individual_unit", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryObjectPointsUnderpassSharedUnitLayer = new OpenLayers.Layer.WMS( 
+				"query_object_points_underpass_shared_unit", 
+				urlMap,
+				{ layers:  "query_object_points_underpass_shared_unit", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+
+			queryProjectionPointsParcelLayer= new OpenLayers.Layer.WMS( 
+				"query_projection_points_parcel", 
+				urlMap,
+				{ layers:  "query_projection_points_parcel", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
+			queryProjectionPointsBuildingLayer= new OpenLayers.Layer.WMS( 
+				"query_projection_points_building", 
+				urlMap,
+				{ layers:  "query_projection_points_building", format: 'image/png' },
+				{ isBaseLayer: false, visibility: false, opacity: 1.0, transparent: true, displayInLayerSwitcher: false }				
+			);
 
 			//Lekérdező layer-ek
 			map.addLayer(identifyLayer);
-			map.addLayer(queryOwnerBuildingIndividualUnitLayer);
-			map.addLayer(queryObjectPointsBuildingIndividualUnitLayer);
+
 			map.addLayer(queryOwnerParcelLayer);
-			map.addLayer(queryProjectionPointsParcelLayer);
 			map.addLayer(queryOwnerBuildingLayer);
-			map.addLayer(queryProjectionPointsBuildingLayer);
+			map.addLayer(queryOwnerUnderpassLayer);
+			map.addLayer(queryOwnerUnderpassIndividualUnitLayer);
+			map.addLayer(queryOwnerUnderpassSharedUnitLayer);
+			map.addLayer(queryOwnerBuildingIndividualUnitLayer);
+
 			map.addLayer(queryObjectPointsBuildingLayer);
+			map.addLayer(queryObjectPointsBuildingIndividualUnitLayer);
+			map.addLayer(queryObjectPointsUnderpassLayer);
+			map.addLayer(queryObjectPointsUnderpassIndividualUnitLayer);
+			map.addLayer(queryObjectPointsUnderpassSharedUnitLayer);
+
+			map.addLayer(queryProjectionPointsParcelLayer);
+			map.addLayer(queryProjectionPointsBuildingLayer);
 
 			//Megjelenithető layer-ek
 			//Fontos a sorrend. A kovetkezo mindig az elozo felett van
@@ -287,9 +337,8 @@
 				X: e.xy.x,
 				Y: e.xy.y,
 				INFO_FORMAT: 'text/html',
-				QUERY_LAYERS:  "identify_point,identify_building_individual_unit,identify_building,identify_parcel", //Azok a layer-ek, amikrol infot akarok
-//				QUERY_LAYERS:  "identify_point,identify_building_individual_unit,identify_building,identify_parcel, identify_underpass, identify_underpass_individual_unit, identify_underpass_shared_unit", //Azok a layer-ek, amikrol infot akarok
-				FEATURE_COUNT: 100,
+				QUERY_LAYERS:  "identify_point,identify_building_individual_unit,identify_building,identify_underpass_individual_unit,identify_underpass_shared_unit,identify_underpass,identify_parcel", //Azok a layer-ek, amikrol infot akarok
+				FEATURE_COUNT: 100,   //Azért kell, mert ha pld van egy sokemeletes épület azonos típusú ingatlanokkal egymás alatt, akkor kell az összes találat, hiszen még nem tudom, hogy melyik szintet akarom
 				WIDTH: map.size.w,
 				HEIGHT: map.size.h });
 				OpenLayers.Request.GET({ url: getInfoCommonURL, callback: function(response){ selection(response, e.xy )}});			
@@ -393,21 +442,8 @@
 							result += "h: <b>" + identify_point_h + "</b>";
 						}
 	
-						/*
-						//Eredmeny egy buborekba a kivalasztott ponthoz
-						popup = new OpenLayers.Popup.FramedCloud(
-			                        "chick", 
-			                        map.getLonLatFromPixel( xy ),
-			                        null, //new OpenLayers.Size(100,300),
-			                        result,
-			                        null,
-			                        true,
-			                        null
-	                   );
+						//showBobble( result, projPos );
 
-						//Elhelyezi a buborekot-a terkepen
-						map.addPopup( popup ); 
-						*/
 						//==================================
 						//=                                                  =
 						//=   Kozvetlen adatok megjelenitese =
@@ -425,6 +461,402 @@
 						break
 					}
 				}
+
+				        ///////////////////////////////////////////////////////////////////////////////////
+				      ///////////////////                                                            ///////////////////////////////
+				    ///////////////////    UNDERPASS INDIVIDUAL UNIT   ///////////////////////////////
+				  ///////////////////                                                           ///////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////
+				for( i = 0; !hasSelected && i< objs.length; i++){
+
+					//Álatlános paraméterek, Ezek már itt is léteznek
+					identify_name = $(objs[ i ]).attr("identify_name");
+					identify_nid = $(objs[ i ]).find("identify_nid")[0].textContent;				
+
+					        // / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
+					      // / / / /                                                                           / / / / / 
+					    // / / / /      Ha üzlet volt és a layer-en latszik                   / / / / /  
+					  // / / / /                                                                          / / / / / 
+					// / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /  
+
+					if( identify_name == "im_underpass_individual_unit"  &&  viewUnderpassLayer.getVisibility()  &&  underpassLevelsLayerSwitcher.checked && underpassUnitLayerSwitcher.checked ){
+
+						//Ezek aluljáró-üzlet specifikus paraméterek, csak itt lehetek biztos benne, hogy léteznek
+						identify_level = $(objs[ i ]).find("identify_level")[0].textContent;
+						identify_settlement = $(objs[ i ]).find("identify_settlement")[0].textContent;
+						identify_hrsz = $(objs[ i ]).find("identify_hrsz")[0].textContent;
+						identify_registered_area = $(objs[ i ]).find("identify_registered_area")[0].textContent;
+						identify_measured_area = $(objs[ i ]).find("identify_measured_area")[0].textContent;
+
+						//Ha  a látható szinten választottam
+						if( viewUnderpassLayer.params.visible_underpass_level == identify_level ){
+
+							//=================================================
+							//=                                                                           =
+							//=   Kozvetlen adatok buborekban valo megjelenitese =
+							//=                                                                          =
+							//================================================
+
+							//Buborkék előkészítése		
+							var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró-üzlethelyiség</center><br>";
+							result += "Város: <b>" + identify_settlement + "</b><br>";
+							result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
+							result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
+							result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+	
+							showBobble( result, projPos );
+
+							//==================================
+							//=                                                  =
+							//=   Kozvetlen adatok megjelenitese =
+							//=                                                 =
+							//================================
+
+							document.getElementById( "objectDataDIV" ).innerHTML = result;
+
+							//==============================
+							//=                                            =
+							//=   Tulajdonosok megjelenitese =
+							//=                                           =
+							//============================
+
+							//Paraméter átadás-csak a kivalasztott lakas tulajdonosait adja vissza
+							queryOwnerUnderpassIndividualUnitLayer.params.selected_nid=identify_nid;
+							queryOwnerUnderpassIndividualUnitLayer.params.visible_underpass_level=identify_level;
+
+							//Owner list query  a kivalasztott objektumrol
+							var getOwnerInfo=queryOwnerUnderpassIndividualUnitLayer.getFullRequestString({
+								REQUEST: "GetFeatureInfo",
+								EXCEPTIONS: "application/vnd.ogc.se_xml",
+								FORMAT: 'png',
+								BBOX: map.getExtent().toBBOX(),
+								X: xy.x,
+								Y: xy.y,
+								INFO_FORMAT: 'text/html',
+								QUERY_LAYERS: 'query_owner_underpass_individual_unit',
+								FEATURE_COUNT: 100,
+								WIDTH: map.size.w,
+								HEIGHT: map.size.h });
+
+							//A query elküldése
+							OpenLayers.Request.GET({ url: getOwnerInfo, callback: function(response){ 
+
+								//Tulajdonosi viszonyok megjelenitese
+								document.getElementById( "ownerListDIV" ).innerHTML = response.responseText;
+							}});
+
+							//===================================
+							//=                                                    =
+							//= 3D objektum Pontok megjelenitese =
+							//=                                                   =
+							//=================================
+							queryObjectPointsUnderpassIndividualUnitLayer.params.selected_nid=identify_nid;
+							queryObjectPointsUnderpassIndividualUnitLayer.params.visible_underpass_level=identify_level;
+
+							//Owner list query  a kivalasztott objektumrol
+							var getPointInfo=queryObjectPointsUnderpassIndividualUnitLayer.getFullRequestString({
+								REQUEST: "GetFeatureInfo",
+								EXCEPTIONS: "application/vnd.ogc.se_xml",
+								FORMAT: 'png',
+								BBOX: map.getExtent().toBBOX(),
+								X: xy.x,
+								Y: xy.y,
+								INFO_FORMAT: 'text/html',
+								QUERY_LAYERS: 'query_object_points_underpass_individual_unit',
+								FEATURE_COUNT: 100,
+								WIDTH: map.size.w,
+								HEIGHT: map.size.h });
+
+							//A query elküldése
+							OpenLayers.Request.GET({ url: getPointInfo, callback: function(response){ 
+
+								//Pontok megjelenitese
+								document.getElementById( "objectPointsListDIV" ).innerHTML = response.responseText;
+							}});
+
+							//=========================
+							//=                                     =
+							//=  X3D Létrehozása          =
+							//=                                     =
+							//=========================
+
+							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+
+							//Kijelölés
+							viewUnderpassLayer.params.selected_nid =  identify_nid;
+							viewUnderpassLayer.params.selected_name = identify_name;
+
+							//Jelzem, hogy van kivalasztott elem
+							hasSelected = true;
+							break
+						}
+					}
+				}//UNDERPASS INDIVIDUAL UNIT for
+
+				        ///////////////////////////////////////////////////////////////////////////////////
+				      ///////////////////                                                            ///////////////////////////////
+				    ///////////////////       UNDERPASS SHARED UNIT        ///////////////////////////////
+				  ///////////////////                                                           ///////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////
+				for( i = 0; !hasSelected && i< objs.length; i++){
+
+					//Álatlános paraméterek, Ezek már itt is léteznek
+					identify_name = $(objs[ i ]).attr("identify_name");
+					identify_nid = $(objs[ i ]).find("identify_nid")[0].textContent;				
+
+					        // / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
+					      // / / / /                                                                           / / / / / 
+					    // / / / /      Ha üzlet volt és a layer-en latszik                   / / / / /  
+					  // / / / /                                                                          / / / / / 
+					// / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / /  
+
+					if( identify_name == "im_underpass_shared_unit"  &&  viewUnderpassLayer.getVisibility()  &&  underpassLevelsLayerSwitcher.checked && underpassUnitLayerSwitcher.checked ){
+
+						//Ezek aluljáró-közös helyiség specifikus paraméterek, csak itt lehetek biztos benne, hogy léteznek
+						identify_level = $(objs[ i ]).find("identify_level")[0].textContent;
+						identify_settlement = $(objs[ i ]).find("identify_settlement")[0].textContent;
+						identify_hrsz = $(objs[ i ]).find("identify_hrsz")[0].textContent;
+						identify_registered_area = $(objs[ i ]).find("identify_registered_area")[0].textContent;
+						identify_measured_area = $(objs[ i ]).find("identify_measured_area")[0].textContent;
+
+						//Ha  a látható szinten választottam
+						if( viewUnderpassLayer.params.visible_underpass_level == identify_level ){
+
+							//=================================================
+							//=                                                                           =
+							//=   Kozvetlen adatok buborekban valo megjelenitese =
+							//=                                                                          =
+							//================================================
+
+							//Buborkék előkészítése		
+							var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró-közös-helyiség</center><br>";
+							result += "Város: <b>" + identify_settlement + "</b><br>";
+							result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
+							result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
+							result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+	
+							showBobble( result, projPos );
+
+							//==================================
+							//=                                                  =
+							//=   Kozvetlen adatok megjelenitese =
+							//=                                                 =
+							//================================
+
+							document.getElementById( "objectDataDIV" ).innerHTML = result;
+
+							//==============================
+							//=                                            =
+							//=   Tulajdonosok megjelenitese =
+							//=                                           =
+							//============================
+
+							//Paraméter átadás-csak a kivalasztott lakas tulajdonosait adja vissza
+							queryOwnerUnderpassSharedUnitLayer.params.selected_nid=identify_nid;
+							queryOwnerUnderpassSharedUnitLayer.params.visible_underpass_level=identify_level;
+
+							//Owner list query  a kivalasztott objektumrol
+							var getOwnerInfo=queryOwnerUnderpassSharedUnitLayer.getFullRequestString({
+								REQUEST: "GetFeatureInfo",
+								EXCEPTIONS: "application/vnd.ogc.se_xml",
+								FORMAT: 'png',
+								BBOX: map.getExtent().toBBOX(),
+								X: xy.x,
+								Y: xy.y,
+								INFO_FORMAT: 'text/html',
+								QUERY_LAYERS: 'query_owner_underpass_shared_unit',
+								FEATURE_COUNT: 100,
+								WIDTH: map.size.w,
+								HEIGHT: map.size.h });
+
+							//A query elküldése
+							OpenLayers.Request.GET({ url: getOwnerInfo, callback: function(response){ 
+
+								//Tulajdonosi viszonyok megjelenitese
+								document.getElementById( "ownerListDIV" ).innerHTML = response.responseText;
+							}});
+
+							//===================================
+							//=                                                    =
+							//= 3D objektum Pontok megjelenitese =
+							//=                                                   =
+							//=================================
+							queryObjectPointsUnderpassSharedUnitLayer.params.selected_nid=identify_nid;
+							queryObjectPointsUnderpassSharedUnitLayer.params.visible_underpass_level=identify_level;
+
+							//Owner list query  a kivalasztott objektumrol
+							var getPointInfo=queryObjectPointsUnderpassSharedUnitLayer.getFullRequestString({
+								REQUEST: "GetFeatureInfo",
+								EXCEPTIONS: "application/vnd.ogc.se_xml",
+								FORMAT: 'png',
+								BBOX: map.getExtent().toBBOX(),
+								X: xy.x,
+								Y: xy.y,
+								INFO_FORMAT: 'text/html',
+								QUERY_LAYERS: 'query_object_points_underpass_shared_unit',
+								FEATURE_COUNT: 100,
+								WIDTH: map.size.w,
+								HEIGHT: map.size.h });
+
+							//A query elküldése
+							OpenLayers.Request.GET({ url: getPointInfo, callback: function(response){ 
+								//Pontok megjelenitese
+								document.getElementById( "objectPointsListDIV" ).innerHTML = response.responseText;
+							}});
+
+							//=========================
+							//=                                     =
+							//=  X3D Létrehozása          =
+							//=                                     =
+							//=========================
+
+							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+
+							//Kijelölés
+							viewUnderpassLayer.params.selected_nid =  identify_nid;
+							viewUnderpassLayer.params.selected_name = identify_name;
+
+							//Jelzem, hogy van kivalasztott elem
+							hasSelected = true;
+							break
+						}
+					}
+				}//UNDERPASS SHARED UNIT for
+
+						   /////////////////////////////////////////////////////////////////////////////////
+				        ////////////////////                                                       ///////////////////////////////
+				     ////////////////////                   UNDERPASS               ////////////////////////////////
+				   /////////////////////                                                       //////////////////////////////
+				//////////////////////////////////////////////////////////////////////////////////
+				for( i = 0; !hasSelected && i< objs.length; i++){
+
+					//Álatlános paraméterek, Ezek már itt is léteznek
+					identify_name = $(objs[ i ]).attr("identify_name");
+					identify_nid = $(objs[ i ]).find("identify_nid")[0].textContent;
+				
+					        // / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
+					      // / / / /                                                                           / / / / / 
+					    // / / / /       Ha aluljáró volt és a layer-en latszik               / / / / /  
+					  // / / / /                                                                           / / / / / 
+					// / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / / 
+					if( identify_name == "im_underpass"  && viewUnderpassLayer.getVisibility() ){
+
+						//Ezek az aluljáró specifikus paraméterei, csak itt lehetek biztos benne, hogy léteznek
+						identify_settlement = $(objs[ i ]).find("identify_settlement")[0].textContent;
+						identify_hrsz = $(objs[ i ]).find("identify_hrsz")[0].textContent;
+						identify_levels = $(objs[ i ]).find("identify_levels")[0].textContent;
+						identify_registered_area = $(objs[ i ]).find("identify_registered_area")[0].textContent;
+						identify_measured_area = $(objs[ i ]).find("identify_measured_area")[0].textContent;
+
+						//=================================================
+						//=                                                                           =
+						//=   Kozvetlen adatok buborekban valo megjelenitese =
+						//=                                                                          =
+						//================================================
+
+						//Buborkék előkészítése		
+						var result = "Város: <b>" + identify_settlement + "</b><br>";
+						result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
+						result += "Szintek száma: <b>" + identify_levels + "</b><br>";
+						result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
+						result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+
+						result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró ingatlan</center><br>" + result;
+
+						showBobble( result, projPos );
+
+						//==================================
+						//=                                                  =
+						//=   Kozvetlen adatok megjelenitese =
+						//=                                                 =
+						//================================
+
+						document.getElementById( "objectDataDIV" ).innerHTML = result;
+
+						//===============================
+						//=                                             =
+						//=   Tulajdonosok megjelenitese  =
+						//=                                            =
+						//=============================
+
+						//Paraméter átadás-csak a kivalasztott lakas tulajdonosait adja vissza
+						queryOwnerUnderpassLayer.params.selected_nid=identify_nid;
+
+						//Owner list query  a kivalasztott objektumrol
+						var getOwnerInfo=queryOwnerUnderpassLayer.getFullRequestString({
+							REQUEST: "GetFeatureInfo",
+							EXCEPTIONS: "application/vnd.ogc.se_xml",
+							FORMAT: 'png',
+							BBOX: map.getExtent().toBBOX(),
+							X: xy.x,
+							Y: xy.y,
+							INFO_FORMAT: 'text/html',
+							QUERY_LAYERS: 'query_owner_underpass',
+							FEATURE_COUNT: 100,
+							WIDTH: map.size.w,
+							HEIGHT: map.size.h });
+
+						//A query elküldése
+						OpenLayers.Request.GET({ url: getOwnerInfo, callback: function(response){ 
+
+							//Tulajdonosi viszonyok megjelenitese
+							document.getElementById( "ownerListDIV" ).innerHTML = response.responseText;
+						}});
+
+						//===================================
+						//=                                                     =
+						//=  3D objektum Pontok megjelenitese =
+						//=                                                     =
+						//===================================
+						queryObjectPointsUnderpassLayer.params.selected_nid=identify_nid;
+
+						//Owner list query  a kivalasztott objektumrol
+						var getPointInfo=queryObjectPointsUnderpassLayer.getFullRequestString({
+							REQUEST: "GetFeatureInfo",
+							EXCEPTIONS: "application/vnd.ogc.se_xml",
+							FORMAT: 'png',
+							BBOX: map.getExtent().toBBOX(),
+							X: xy.x,
+							Y: xy.y,
+							INFO_FORMAT: 'text/html',
+							QUERY_LAYERS: 'query_object_points_underpass',
+							FEATURE_COUNT: 100,
+							WIDTH: map.size.w,
+							HEIGHT: map.size.h });
+
+						//A query elküldése
+						OpenLayers.Request.GET({ url: getPointInfo, callback: function(response){ 
+
+							//Pontok megjelenitese
+							document.getElementById( "objectPointsListDIV" ).innerHTML = response.responseText;
+						}});
+
+						//=========================
+						//=                                     =
+						//=  X3D Létrehozása          =
+						//=                                     =
+						//=========================
+
+						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+
+						//Kijelölés
+						viewUnderpassLayer.params.selected_nid =  identify_nid;
+						viewUnderpassLayer.params.selected_name = identify_name;
+
+						//Jelzem, hogy van kivalasztott elem
+						hasSelected = true;
+						break
+					}
+				}//UNDERPASS for
+
+
+
+
+
+
+
+
+
 
 
 				        ///////////////////////////////////////////////////////////////////////////////////
