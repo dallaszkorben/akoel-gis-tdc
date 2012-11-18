@@ -121,6 +121,60 @@ CREATE TYPE identify_point AS (
 ALTER TYPE main.identify_point OWNER TO tdc;
 
 --
+-- Name: identify_underpass; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_underpass AS (
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_settlement text,
+	identify_hrsz text,
+	identify_levels integer,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
+);
+
+
+ALTER TYPE main.identify_underpass OWNER TO tdc;
+
+--
+-- Name: identify_underpass_individual_unit; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_underpass_individual_unit AS (
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_level character varying(5),
+	identify_settlement text,
+	identify_hrsz text,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
+);
+
+
+ALTER TYPE main.identify_underpass_individual_unit OWNER TO tdc;
+
+--
+-- Name: identify_underpass_shared_unit; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE identify_underpass_shared_unit AS (
+	identify_geom public.geometry,
+	identify_name text,
+	identify_nid bigint,
+	identify_level character varying(5),
+	identify_settlement text,
+	identify_hrsz text,
+	identify_registered_area numeric(12,1),
+	identify_measured_area numeric(12,1)
+);
+
+
+ALTER TYPE main.identify_underpass_shared_unit OWNER TO tdc;
+
+--
 -- Name: query_owner; Type: TYPE; Schema: main; Owner: tdc
 --
 
@@ -972,6 +1026,188 @@ $$;
 ALTER FUNCTION main.identify_point(visible_building_level character varying, visible_underpass_level character varying) OWNER TO tdc;
 
 --
+-- Name: identify_underpass(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_underpass() RETURNS SETOF identify_underpass
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  object_name text = 'im_underpass';
+  output main.identify_underpass%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      face.geom AS identify_geom,
+      object_name AS identify_name, 
+      underpass.nid AS identify_nid,   
+  
+      underpass.im_settlement AS identify_settlement,
+      underpass.hrsz_main AS identify_hrsz,
+      levels_for_underpass.levels AS identify_levels,
+      underpass.area AS selected_identify_area,
+      levels_for_underpass.area AS identify_measured_area
+    FROM 
+       main.im_underpass underpass,
+       main.tp_face face,
+      (SELECT
+        underpass.nid AS underpass_nid,
+        count( underpasslevels.im_levels ) AS levels,
+        sum( st_area( face.geom ) ) AS area
+      FROM
+        main.im_underpass underpass,
+        main.im_underpass_levels underpasslevels,
+        main.tp_face face
+      WHERE
+        underpass.nid=underpasslevels.im_underpass AND
+        face.gid=underpasslevels.projection
+      GROUP BY underpass.nid) AS levels_for_underpass
+    WHERE
+      face.gid=underpass.projection AND
+      underpass.nid=levels_for_underpass.underpass_nid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+
+$$;
+
+
+ALTER FUNCTION main.identify_underpass() OWNER TO tdc;
+
+--
+-- Name: identify_underpass_individual_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_underpass_individual_unit() RETURNS SETOF identify_underpass_individual_unit
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  object_name text = 'im_underpass_individual_unit';
+  output main.identify_underpass_individual_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      face.geom AS identify_geom,
+      object_name AS identify__name, 
+      indunit.nid AS identify_nid,
+      indunitlevel.im_levels AS identify_level,
+      underpass.im_settlement AS identify_settlement,
+      underpass.hrsz_main||'/'||indunit.hrsz_unit AS identify_hrsz,
+      summary.sum_registered_area AS identify_registered_area,
+      summary.sum_measured_area AS identify_measured_area
+    FROM 
+      main.im_underpass underpass, 
+      main.im_underpass_individual_unit indunit, 
+      main.im_underpass_individual_unit_level indunitlevel,
+      main.tp_face face,
+      (SELECT
+        indunit.im_underpass im_underpass, 
+        indunit.hrsz_unit hrsz_unit, 
+        sum(st_area(face.geom)) sum_measured_area, 
+        sum(unitlevel.area) sum_registered_area 
+      FROM 
+        main.im_underpass_individual_unit_level unitlevel, 
+        main.im_underpass_individual_unit indunit,
+        main.tp_face face
+      WHERE 
+        unitlevel.im_underpass=indunit.im_underpass AND
+        unitlevel.hrsz_unit=indunit.hrsz_unit AND
+        unitlevel.projection=face.gid
+      GROUP BY indunit.im_underpass, indunit.hrsz_unit
+      ) as summary
+    WHERE
+      summary.im_underpass=indunit.im_underpass AND
+      summary.hrsz_unit=indunit.hrsz_unit AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.im_underpass=indunitlevel.im_underpass AND
+      indunit.hrsz_unit=indunitlevel.hrsz_unit AND
+      indunitlevel.projection=face.gid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.identify_underpass_individual_unit() OWNER TO tdc;
+
+--
+-- Name: identify_underpass_shared_unit(); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION identify_underpass_shared_unit() RETURNS SETOF identify_underpass_shared_unit
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  object_name text = 'im_underpass_shared_unit';
+  output main.identify_underpass_shared_unit%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      face.geom AS identify_geom,
+      object_name AS identify__name, 
+      indunit.nid AS identify_nid,
+      indunitlevel.im_levels AS identify_level,
+      underpass.im_settlement AS identify_settlement,
+      underpass.hrsz_main||'/'||indunit.hrsz_unit AS identify_hrsz,
+      summary.sum_registered_area AS identify_registered_area,
+      summary.sum_measured_area AS identify_measured_area
+    FROM 
+      main.im_underpass underpass, 
+      main.im_underpass_shared_unit indunit, 
+      main.im_underpass_shared_unit_level indunitlevel,
+      main.tp_face face,
+      (SELECT
+        indunit.im_underpass im_underpass, 
+        indunit.hrsz_unit hrsz_unit, 
+        sum(st_area(face.geom)) sum_measured_area, 
+        sum(unitlevel.area) sum_registered_area 
+      FROM 
+        main.im_underpass_shared_unit_level unitlevel, 
+        main.im_underpass_shared_unit indunit,
+        main.tp_face face
+      WHERE 
+        unitlevel.im_underpass=indunit.im_underpass AND
+        unitlevel.hrsz_unit=indunit.hrsz_unit AND
+        unitlevel.projection=face.gid
+      GROUP BY indunit.im_underpass, indunit.hrsz_unit
+      ) as summary
+    WHERE
+      summary.im_underpass=indunit.im_underpass AND
+      summary.hrsz_unit=indunit.hrsz_unit AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.im_underpass=indunitlevel.im_underpass AND
+      indunit.hrsz_unit=indunitlevel.hrsz_unit AND
+      indunitlevel.projection=face.gid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.identify_underpass_shared_unit() OWNER TO tdc;
+
+--
 -- Name: query_object_points_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
@@ -1110,6 +1346,215 @@ $$;
 ALTER FUNCTION main.query_object_points_building_individual_unit(selected_nid bigint, visible_building_level character varying) OWNER TO tdc;
 
 --
+-- Name: query_object_points_underpass(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_object_points_underpass(selected_nid bigint) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      underpass.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_underpass underpass, 
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      underpass.nid=selected_nid AND    
+      underpass.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_object_points_underpass(selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_object_points_underpass_individual_unit(bigint, character varying); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_object_points_underpass_individual_unit(selected_nid bigint, visible_underpass_level character varying) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_underpass_individual_unit indunit, 
+      main.im_underpass_individual_unit_level unitlevel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      indunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_underpass_level AND
+      unitlevel.im_underpass=indunit.im_underpass AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_object_points_underpass_individual_unit(selected_nid bigint, visible_underpass_level character varying) OWNER TO tdc;
+
+--
+-- Name: query_object_points_underpass_shared_unit(bigint, character varying); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_object_points_underpass_shared_unit(selected_nid bigint, visible_underpass_level character varying) RETURNS SETOF query_point
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_point%rowtype;
+BEGIN
+
+  FOR output IN    
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      surveypoint.name AS point_name,
+      surveypoint.description AS point_description,
+      point.quality AS point_quality,
+      document.date AS point_measured_date,
+      point.x AS point_x,
+      point.y AS point_y,
+      point.h AS point_h
+    FROM 
+      main.im_underpass_shared_unit sharedunit, 
+      main.im_underpass_shared_unit_level unitlevel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point surveypoint,
+      main.sv_point point,
+      main.sv_survey_document document,
+      (
+      SELECT node.gid AS node_gid, max(document.date) AS date
+      FROM
+        main.tp_node node,
+        main.sv_survey_point surveypoint,
+        main.sv_point point,
+        main.sv_survey_document document
+      WHERE
+        node.gid=surveypoint.nid AND
+        point.sv_survey_point=surveypoint.nid AND
+        point.sv_survey_document=document.nid AND
+        document.date<=current_date
+      GROUP BY node.gid
+      ) lastpoint
+    WHERE
+      sharedunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_underpass_level AND
+      unitlevel.im_underpass=sharedunit.im_underpass AND
+      unitlevel.hrsz_unit=sharedunit.hrsz_unit AND
+      sharedunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      surveypoint.nid=node.gid AND
+      point.sv_survey_point=surveypoint.nid AND
+      point.sv_survey_document=document.nid AND
+      lastpoint.date=document.date AND
+      lastpoint.node_gid=node.gid
+    ORDER BY point_name
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_object_points_underpass_shared_unit(selected_nid bigint, visible_underpass_level character varying) OWNER TO tdc;
+
+--
 -- Name: query_owner_building(integer, bigint); Type: FUNCTION; Schema: main; Owner: tdc
 --
 
@@ -1240,7 +1685,6 @@ ALTER FUNCTION main.query_owner_building(immovable_type integer, selected_nid bi
 CREATE FUNCTION query_owner_building_individual_unit(selected_nid bigint, visible_building_level character varying) RETURNS SETOF query_owner
     LANGUAGE plpgsql
     AS $$
-
 DECLARE
   output main.query_owner%rowtype;
 BEGIN
@@ -1261,6 +1705,7 @@ BEGIN
       indunit.nid=selected_nid AND
       unitlevel.im_levels=visible_building_level AND
       r.rt_legal_document=document.nid AND
+      r.rt_type=1 AND
       r.pn_person=person.nid AND
       r.im_building_individual_unit=indunit.nid AND
       unitlevel.im_building=indunit.im_building AND
@@ -1379,6 +1824,149 @@ $$;
 
 
 ALTER FUNCTION main.query_owner_parcel(immovable_type integer, selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_owner_underpass(bigint); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_underpass(selected_nid bigint) RETURNS SETOF query_owner
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_owner%rowtype;
+BEGIN
+  FOR output IN
+
+    SELECT DISTINCT
+      underpass.projection AS selected_projection,      
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share,
+      document.date AS owner_contract_date
+    FROM        
+      main.im_underpass underpass,
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person
+    WHERE
+      underpass.nid=selected_nid AND
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_underpass=underpass.nid
+
+      LOOP
+      RETURN NEXT output;
+    END LOOP;
+
+  RETURN;
+END; 
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_underpass(selected_nid bigint) OWNER TO tdc;
+
+--
+-- Name: query_owner_underpass_individual_unit(bigint, character varying); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_underpass_individual_unit(selected_nid bigint, visible_underpass_level character varying) RETURNS SETOF query_owner
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_owner%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      person.name AS owner_name,
+      r.share_numerator||'/'||r.share_denominator AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM 
+      main.im_underpass_individual_unit indunit, 
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_underpass_individual_unit_level unitlevel
+    WHERE
+      indunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_underpass_level AND
+      r.rt_type=1 AND
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid AND
+      r.im_underpass_individual_unit=indunit.nid AND
+      unitlevel.im_underpass=indunit.im_underpass AND
+      unitlevel.hrsz_unit=indunit.hrsz_unit
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_underpass_individual_unit(selected_nid bigint, visible_underpass_level character varying) OWNER TO tdc;
+
+--
+-- Name: query_owner_underpass_shared_unit(bigint, character varying); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_owner_underpass_shared_unit(selected_nid bigint, visible_underpass_level character varying) RETURNS SETOF query_owner
+    LANGUAGE plpgsql
+    AS $$
+
+DECLARE
+  output main.query_owner%rowtype;
+BEGIN
+
+  FOR output IN
+    SELECT DISTINCT
+      unitlevel.projection AS found_projection,
+      person.name AS owner_name,
+connector.share_numerator || '/' || sharedunit.share_denominator || 
+' (' || '' || underpass.hrsz_main || '/' || indunit.hrsz_unit || ': ' ||  
+r.share_numerator||'/'||r.share_denominator || ')'
+
+ AS owner_share, 
+      document.date AS owner_contract_date      
+    FROM
+      main.im_underpass underpass,
+      main.im_underpass_individual_unit indunit, 
+      main.im_underpass_shared_unit sharedunit, 
+      main.im_individual_shared connector,
+      main.rt_right r,
+      main.rt_legal_document document,
+      main.pn_person person,
+      main.im_underpass_shared_unit_level unitlevel
+    WHERE
+      sharedunit.nid=selected_nid AND
+      unitlevel.im_levels=visible_underpass_level AND
+      underpass.nid=indunit.im_underpass AND
+      unitlevel.im_underpass=sharedunit.im_underpass AND
+      unitlevel.hrsz_unit=sharedunit.hrsz_unit AND
+      sharedunit.nid=connector.im_underpass_shared_unit AND
+      indunit.nid=connector.im_underpass_individual_unit AND
+      indunit.nid=r.im_underpass_individual_unit AND
+      r.rt_type=1 AND
+      r.rt_legal_document=document.nid AND
+      r.pn_person=person.nid
+      
+     
+    LOOP
+    RETURN NEXT output;
+  END LOOP;
+
+  RETURN;
+END;
+
+$$;
+
+
+ALTER FUNCTION main.query_owner_underpass_shared_unit(selected_nid bigint, visible_underpass_level character varying) OWNER TO tdc;
 
 --
 -- Name: query_point_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc
@@ -1722,21 +2310,22 @@ ALTER FUNCTION main.query_projection_points_parcel(selected_nid bigint) OWNER TO
 
 CREATE FUNCTION query_x3d(immovable_type integer, selected_name text, selected_nid bigint, selected_x numeric, selected_y numeric) RETURNS SETOF query_x3d
     LANGUAGE plpgsql
-    AS $$
-
-DECLARE
+    AS $$DECLARE
   output main.query_x3d%rowtype;
   name_parcel text = 'im_parcel';
   name_building text = 'im_building';
   name_building_individual_unit text = 'im_building_individual_unit';
+  name_underpass text = 'im_underpass';
+  name_underpass_individual_unit text = 'im_underpass_individual_unit';
+  name_underpass_shared_unit text = 'im_underpass_shared_unit';
   name_point text = 'sv_survey_point';
 
   parcel_list bigint[];
   building_list bigint[];
+  underpass_list bigint[];
 
---  geometry geometry = ST_GeomFromText( 'POLYGON( ( ' || selected_x-1 || ' ' || selected_y-1 || ', ' || selected_x+1 || ' ' || selected_y-1 || ', ' || selected_x+1 || ' ' || selected_y+1 || ', ' || selected_x-1 || ' ' || selected_y+1 || ', ' || selected_x-1 || ' ' || selected_y-1 || ') )' );
-
-geometry geometry = ST_GeomFromText( 'POINT( ' || selected_x || ' ' || selected_y || ')', -1 );
+  --Kell geometria a MAP fájl számára. Elég neki egy pont is
+  geometry geometry = ST_GeomFromText( 'POINT( ' || selected_x || ' ' || selected_y || ')', -1 );
 
 
 BEGIN
@@ -1847,6 +2436,126 @@ BEGIN
       parcel_projection.gid=parcel.projection AND
       st_contains(parcel_projection.geom, building_projection.geom); 
 
+  ----------------------------
+  -- Ha aluljárót választottam
+  ----------------------------
+  ELSIF( selected_name=name_underpass ) THEN
+
+    -- Akár több parcella is érintett lehet a kiválasztott aluljáró kapcsolatban
+    SELECT INTO parcel_list 
+      array_agg( parcel.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      underpass.nid = selected_nid AND
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom);  
+
+    --A több vagy csak 1 parcellához pedig megkeresem az összes aluljárót
+    SELECT INTO underpass_list 
+      array_agg( underpass.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      ARRAY[parcel.nid] <@ parcel_list AND
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom); 
+
+
+  ------------------------------------------------
+  -- Ha egy üzletet választottam az aluljáróban --
+  ------------------------------------------------
+  ELSIF( selected_name=name_underpass_individual_unit ) THEN
+
+    --Azonosítom az aluljárót, de ez csak az első lépés, mert lehet azonos telken több aluljáró is
+    SELECT INTO underpass_list
+      array_agg( underpass.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_underpass_individual_unit indunit
+    WHERE
+      indunit.nid=selected_nid AND
+      indunit.im_underpass=underpass.nid;
+
+    --Az aluljáróhoz azonosítom a telkeket
+    SELECT INTO parcel_list 
+      array_agg( parcel.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list  AND --persze itt az underpass_list csak 1 elemü
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom);  
+ 
+    --Most mar a parcellához azonosíthatom az összes épületet
+    SELECT INTO underpass_list 
+      array_agg( underpass.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      ARRAY[parcel.nid] <@ parcel_list AND
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom); 
+
+  ---------------------------------------------------------
+  -- Ha egy közös helyiséget választottam az aluljáróban --
+  ---------------------------------------------------------
+  ELSIF( selected_name=name_underpass_shared_unit ) THEN
+
+    --Azonosítom az aluljárót, de ez csak az első lépés, mert lehet azonos telken több aluljáró is
+    SELECT INTO underpass_list
+      array_agg( underpass.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_underpass_shared_unit shared
+    WHERE
+      shared.nid=selected_nid AND
+      shared.im_underpass=underpass.nid;
+
+    --Az aluljáróhoz azonosítom a telkeket
+    SELECT INTO parcel_list 
+      array_agg( parcel.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list  AND --persze itt az underpass_list csak 1 elemü
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom);  
+ 
+    --Most mar a parcellához azonosíthatom az összes épületet
+    SELECT INTO underpass_list 
+      array_agg( underpass.nid )
+    FROM
+      main.im_underpass underpass,
+      main.im_parcel parcel,
+      main.tp_face underpass_projection,
+      main.tp_face parcel_projection
+    WHERE
+      ARRAY[parcel.nid] <@ parcel_list AND
+      underpass_projection.gid=underpass.projection AND
+      parcel_projection.gid=parcel.projection AND
+      st_contains(parcel_projection.geom, underpass_projection.geom); 
+
   END IF;
 
 
@@ -1910,7 +2619,6 @@ BEGIN
       selected_nid AS query_base_nid,
       selected_name AS query_base_name,
       geometry AS query_base_geom,
---face.geom AS query_base_geom,
       name_building AS query_object_name,
       building.nid AS query_object_nid,      
       main.hrsz_concat(building.hrsz_main,building.hrsz_fraction) || CASE WHEN immovable_type=3 THEN '/'||building.hrsz_eoi ELSE '' END  AS x3d_id,
@@ -1919,9 +2627,9 @@ BEGIN
     FROM
       main.im_building building,      
       main.tp_volume volume,
-main.tp_face face
+      main.tp_face face
     WHERE
-face.gid=building.projection AND
+       face.gid=building.projection AND
        building.model=volume.gid AND
        ARRAY[building.nid] <@ building_list
   
@@ -1973,6 +2681,130 @@ face.gid=building.projection AND
       ARRAY[building.nid] <@ building_list AND
       building.nid=indunit.im_building AND
       indunit.model=volume.gid
+
+    UNION
+    ---------------
+    -- Aluljárók --
+    ---------------  
+    SELECT
+      selected_nid AS query_base_nid,
+      selected_name AS query_base_name,
+      geometry AS query_base_geom,
+      name_underpass AS query_object_name,
+      underpass.nid AS query_object_nid,      
+      underpass.hrsz_main::text AS x3d_id,
+      CASE WHEN selected_name=name_underpass AND selected_nid=underpass.nid THEN TRUE ELSE FALSE END AS query_object_selected,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume
+--      main.tp_face face
+    WHERE
+--      face.gid=underpass.projection AND
+      underpass.model=volume.gid AND
+      ARRAY[underpass.nid] <@ underpass_list
+
+    UNION
+
+   ----------------------
+    -- Aluljárók pontjai --
+    ----------------------
+    SELECT
+      selected_nid AS query_base_nid,
+      selected_name AS query_base_name,
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      FALSE as query_object_selected,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_underpass underpass,            
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+
+    ----------------------------------------------------------------
+    -- Aluljárók individual unitjai                               --
+    ----------------------------------------------------------------
+    SELECT
+      selected_nid AS query_base_nid,
+      selected_name AS query_base_name,
+      geometry AS query_base_geom,
+      name_underpass_individual_unit AS query_object_name,
+      indunit.nid AS query_object_nid,      
+      underpass.hrsz_main || '/' || indunit.hrsz_unit  AS x3d_id,
+      CASE WHEN selected_name=name_underpass_individual_unit AND selected_nid=indunit.nid THEN TRUE ELSE FALSE END AS query_object_selected,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_individual_unit indunit
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.model=volume.gid
+
+    UNION
+-------------------------
+    ----------------------------------------------------------------
+    -- Aluljárók individual unit-jainak pontjai                   --
+    ----------------------------------------------------------------
+    SELECT
+      selected_nid AS query_base_nid,
+      selected_name AS query_base_name,
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      FALSE AS query_object_selected,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_individual_unit indunit,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+
+    ----------------------------------------------------------------
+    -- Aluljárók shared unitjai                               --
+    ----------------------------------------------------------------
+    SELECT
+      selected_nid AS query_base_nid,
+      selected_name AS query_base_name,
+      geometry AS query_base_geom,
+      name_underpass_shared_unit AS query_object_name,
+      sharedunit.nid AS query_object_nid,      
+      underpass.hrsz_main || '/' || sharedunit.hrsz_unit  AS x3d_id,
+      CASE WHEN selected_name=name_underpass_shared_unit AND selected_nid=sharedunit.nid THEN TRUE ELSE FALSE END AS query_object_selected,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_shared_unit sharedunit
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=sharedunit.im_underpass AND
+      sharedunit.model=volume.gid
 
     LOOP
     RETURN NEXT output;
@@ -3278,7 +4110,7 @@ CREATE TABLE im_underpass (
     nid bigint NOT NULL,
     volume integer,
     area integer,
-    hrsz_settlement text NOT NULL,
+    im_settlement text NOT NULL,
     hrsz_main integer NOT NULL,
     projection bigint NOT NULL,
     model bigint,
@@ -4108,7 +4940,7 @@ INSERT INTO im_settlement VALUES ('Budapest');
 -- Data for Name: im_underpass; Type: TABLE DATA; Schema: main; Owner: tdc
 --
 
-INSERT INTO im_underpass VALUES (1, 500, 2000, 'Budapest', 513, 139, 57, 30.00);
+INSERT INTO im_underpass VALUES (1, 500, 590, 'Budapest', 513, 139, 57, 30.00);
 
 
 --
@@ -5543,6 +6375,14 @@ ALTER TABLE ONLY rt_legal_document
 
 
 --
+-- Name: rt_right_unique; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
+--
+
+ALTER TABLE ONLY rt_right
+    ADD CONSTRAINT rt_right_unique UNIQUE (pn_person, rt_legal_document, im_parcel, im_building, im_building_individual_unit, im_underpass_individual_unit, im_underpass, share_numerator, share_denominator, rt_type);
+
+
+--
 -- Name: rt_type_pkey_nid; Type: CONSTRAINT; Schema: main; Owner: tdc; Tablespace: 
 --
 
@@ -5825,7 +6665,7 @@ ALTER TABLE ONLY im_building_shared_unit_level
 --
 
 ALTER TABLE ONLY im_underpass
-    ADD CONSTRAINT im_underpass_fkey_settlement FOREIGN KEY (hrsz_settlement) REFERENCES im_settlement(name);
+    ADD CONSTRAINT im_underpass_fkey_settlement FOREIGN KEY (im_settlement) REFERENCES im_settlement(name);
 
 
 --
