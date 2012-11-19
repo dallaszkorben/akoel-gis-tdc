@@ -753,7 +753,7 @@ MAP
 		#--------------------------
 		CLASS
 			NAME "ut"
-			MINSCALEDENOM 283			  #Egy bizonyos nagyítás felett eltünik az út és takarás nélkül látszik az aluljáró
+			MINSCALEDENOM 283			  						#Egy bizonyos nagyítás felett eltünik az út és takarás nélkül látszik az aluljáró
 			EXPRESSION( '[view_cultivation_nid]'='11' ) 
 			STYLE
 				COLOR 150 150 150
@@ -942,7 +942,7 @@ MAP
 
 		CONNECTIONTYPE postgis
 		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"
-		DATA "view_geom FROM main.view_building( '%visible_building_level%' )  USING UNIQUE view_nid USING srid=2370"
+		DATA "view_geom FROM main.view_building( '%visible_building_level%', %visible_object% )  USING UNIQUE view_nid USING srid=2370"
 
 		STATUS OFF
 		TYPE POLYGON
@@ -979,7 +979,8 @@ MAP
 				WIDTH 3
 			END
 			TEXT '[view_hrsz]'
-			LABEL    
+			LABEL
+				EXPRESSION( [visible_object]<3 )   
 				ANGLE [view_angle]    #hrsz dolesszoge
 				COLOR 255 255 255                           
 				FONT arial-bold
@@ -1049,8 +1050,10 @@ MAP
 			END
 			TEXT '[view_hrsz]'
 			LABEL  
-#EXPRESSION( %visible_object%=2 )   
-#Nem akar működni, pedig kellen
+
+				#trükközni kellett, mert a %visible_object% az itteni EXPRESSION-ban nem működik :(
+				#lehet, hogy a következő verzióban kijavul
+				EXPRESSION( [visible_object]<3 )   
 				ANGLE [view_angle]    #hrsz dolesszoge
 				COLOR 0 0 0                           
 				FONT arial-bold
