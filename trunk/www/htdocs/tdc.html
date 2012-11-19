@@ -4,29 +4,62 @@
 
 		<!-- A lekért adatok megjelenítését szabályozza TABLE-ben -->
 		<style type="text/css">
-		    table.template, th.template, td.template {				
+			table.template, th.template, td.template {				
 				border:1px solid #e5e5e5;
 				border-collapse:collapse;
 				font-family: arial;          
 				font-size: 12;            
 				color: #333333
-		    }             
-	    th.template, td.template {
-			valign: top;
-			text-align: left;
-	    }          
-	    th.template {
-			background-color: #aed7ff
-	    }
-	    caption.template {
+			}             
+			th.template, td.template {
+				valign: top;
+				text-align: left;
+			 }          
+			th.template {
+				background-color: #aed7ff
+			}
+			caption.template {
+				border:1px solid #e5e5e5;
+				border-collapse:collapse;
+				font-family: arial;          
+				font-weight: bold;
+				font-size: 14;      
+				text-align: left;      
+				color: #333333;        
+		    }
+
+		body {
+			font-family: arial;
+			font-weight: normal;
+			font-size: 14;
+			background-color:#bbecd3;
+		}
+		table.ControllerTable{
+			border-radius: 12px;
+			background-color: #6666f5;			
+			width: 100%;
+			padding: 3px;
+			border-spacing: 0px;
+		}
+		th.ControllerTable {
+			border-radius: 12px;
 			border:1px solid #e5e5e5;
-			border-collapse:collapse;
-			font-family: arial;          
-			font-weight: bold;
-			font-size: 14;      
-			text-align: left;      
-			color: #333333;        
-	    }
+			padding: 3px;
+			border-spacing: 0px;
+			font-family: sans-serif;
+			background-color: #0000ee;			
+		}
+		div.Map {
+			border-radius: 12px;
+			border: 1px solid black; 
+			width: 600px; 
+			height: 350px; 
+			background: #426c62;
+		}
+		td.Map{
+			width: 600px;
+		}
+
         </style>
 
 		<title>TDC</title>
@@ -1632,85 +1665,84 @@
 
 </head>
 
-<body onLoad="init()"  bgcolor="#FFFFAA" text="#000000">
+<!--<body onLoad="init()"  bgcolor="#FFFFAA" text="#000000">-->
+<body onLoad="init()" >
 
-	<table border="1" >
+	<table border="0" >
 
 		<!-- Felső, vezérlő szekció -->
 		<tr>						
 			
 			<!-- Térkép -->
-			<td >
-				<div id="mapDiv" style="border: 1px solid black; width:600px; height:350px; background:gray" ></div>
+			<td class="Map" >
+				<div id="mapDiv" class="Map" ></div>
 			</td>
 
 			<!-- Térkép jobb oldalán látható szekció -->
 			<td valign="top" align="left">
-				<table border="1">
+				<table border="0">
 
-					<!-- Vetületen megjelenő épületszint vezérlése -->
-					<tr>
-						<td>
-							Vetületen megjelenő épületszint:
-						</td>
-						<td>
-							<select id="building_level_selection" onchange="levelChange(this)">
-								<option value="-2">-2. Szint</option>
-								<option value="-1">-1. Szint</option>
-								<option value="0">Földszint</option>
-								<option value="1">1. Emelet</option>
-								<option value="2">2. Emelet</option>
-								<option value="3">3. Emelet</option>
-							</select>
-						</td>
-					</tr>
-
-					<!-- Vetületen megjelenő aluljárószint vezérlése -->
-					<tr>
-						<td>
-							Vetületen megjelenő aluljárószint:
-						</td>
-						<td>
-							<select id="underpass_level_selection" onchange="levelChange(this)">
-								<option value="-1">-1. Szint</option>
-								<option value="-2">-2. Szint</option>
-								<option value="-3">-3. Szint</option>
-							</select>
-						</td>
-					</tr>
-
-					<!-- Ki/be kapcsolásokat vezérlő szekció-->					
 					<tr>						
-						<td colspan="2">
-							<table border="1">
-
+						<td>
+							<table border="0" class="ControllerTable">
+								<tr><th colspan="3" align="center"  class="ControllerTable">Beállítások</th></td>
+								
 								<!-- Buborék engedélyezésének ki/be kapcsolása -->
-								<tr><td>	<input type="checkbox" id="bubble_switcher" value="bubble_switcher" unchecked >	Buborék engedélyezése: </td> </tr>
+								<tr><td><input type="checkbox" id="bubble_switcher" value="bubble_switcher" unchecked>	Buborék</td> </tr>
 
 								<!-- 3D model automatikus megjelenítésének ki/be kapcsolása -->
-								<tr><td>	<input type="checkbox" id="x3dmodel_switcher"  value="x3dmodel_switcher" unchecked>3D modell utomatikus megjelenése: </td> </tr>
+								<tr><td><input type="checkbox" id="x3dmodel_switcher"  value="x3dmodel_switcher" unchecked> 3D modell</td> </tr>
+								<tr>
+									<td>
+										<table border="0"  class="ControllerTable">
+				
+											<!-- Vetületen megjelenő épületszint vezérlése -->
+											<tr>												
+												<td>
+													<select id="building_level_selection" onchange="levelChange(this)">
+														<option value="3">3. Emelet</option>
+														<option value="2">2. Emelet</option>
+														<option value="1">1. Emelet</option>
+														<option value="0">Földszint</option>
+														<option value="-1">-1. Szint</option>
+														<option value="-2">-2. Szint</option>
+													</select>
+												</td>
+												<td>Vetületi épületszint:</td>					
+											</tr>
+											<!-- Vetületen megjelenő aluljárószint vezérlése -->								
+											<tr>
+												<td>
+													<select id="underpass_level_selection" onchange="levelChange(this)">
+														<option value="-1">-1. Szint&nbsp;&nbsp;</option>
+														<option value="-2">-2. Szint </option>
+														<option value="-3">-3. Szint</option>
+													</select>
+												</td>
+												<td>	Vetületi aluljárószint:</td>
+											</tr>
+										</table>
+									<td>
+								</tr>
 							</table>
 						</td>
 					<tr>
 
+
 					<!-- Saját Layer-ek ki/be kapcsolását vezérlő szekció -->
 					<tr>
-						<td colspan="2">
-							<div id="layerSwitchDiv" style="border:1px solid black;">
-								<table border="0" CELLSPACING="0" CELLPADDING="0">
-									<tr>
-										<td colspan="2" align="center">
-											Rétegek
-										</td>
-									</td>
-									<tr> <td colspan="1"> <input type="checkbox" id="parcel_layer_switcher" value="parcel_layer_switcher" onchange="layerSwitcher(this)" unchecked> </td> <td> Földrészlet</td>	</tr>
-									<tr> <td colspan="1"> <input type="checkbox" id="building_layer_switcher" value="building_layer_switcher"  onchange="layerSwitcher(this)" unchecked> </td> <td> Épület</td></tr>
-									<tr> <td colspan="1"></td><td><input type="checkbox" id="building_levels_layer_switcher" value="building_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
-									<tr> <td colspan="1"></td><td><input type="checkbox" id="building_unit_layer_switcher" value="building_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Lakások</td></tr>
-									<tr> <td colspan="1"> <input type="checkbox" id="underpass_layer_switcher" value="underpass_layer_switcher"  onchange="layerSwitcher(this)" unchecked> </td> <td> Aluljáró</td></tr>
-									<tr> <td colspan="1"></td><td><input type="checkbox" id="underpass_levels_layer_switcher" value="underpass_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
-									<tr> <td colspan="1"></td><td><input type="checkbox" id="underpass_unit_layer_switcher" value="underpass_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Üzlethelyiségek</td></tr>
-									<tr> <td colspan="1"><input type="checkbox" id="point_layer_switcher" value="point_layer_switcher" onchange="layerSwitcher(this)"  unchecked> </td> <td> Pontok</td></tr>
+						<td>
+							<div id="layerSwitchDiv" > 
+								<table  border="0" class="ControllerTable">
+									<tr><th colspan="3" align="center"  class="ControllerTable">Rétegek</th></td>
+									<tr><td colspan="2"><input type="checkbox" id="parcel_layer_switcher" value="parcel_layer_switcher" onchange="layerSwitcher(this)" unchecked> Földrészlet</td>	</tr>
+									<tr><td colspan="2"><input type="checkbox" id="building_layer_switcher" value="building_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Épület</td></tr>
+									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="building_levels_layer_switcher" value="building_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
+									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="building_unit_layer_switcher" value="building_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Lakások</td></tr>
+									<tr><td colspan="2"><input type="checkbox" id="underpass_layer_switcher" value="underpass_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Aluljáró</td></tr>
+									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="underpass_levels_layer_switcher" value="underpass_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
+									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="underpass_unit_layer_switcher" value="underpass_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Üzlethelyiségek</td></tr>
+									<tr><td colspan="2"><input type="checkbox" id="point_layer_switcher" value="point_layer_switcher" onchange="layerSwitcher(this)"  unchecked> Pontok</td></tr>
 								</table>
 							</div>
 						</td>
