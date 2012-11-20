@@ -1,0 +1,95 @@
+
+		/* Teljes oldalra vonatkozó tulajdonságok */
+		body {
+			font-family: arial;
+			font-weight: normal;
+			font-size: 15px;
+			background-color:#bbecd3;
+		}
+
+		/* Vezérlő panel */
+		table.ControllerTable{
+			border-radius: 12px;
+			background-color: #8691f5;			
+			width: 100%;
+			padding: 3px;
+			border-spacing: 0px;
+		}
+		table.ControllerTable th {
+			border-radius: 12px;
+			border:1px solid #e5e5e5;
+			padding: 3px;
+			border-spacing: 0px;
+			background-color: #4141f1;	
+			font-size: 18px;
+			text-align: center;
+		}
+
+		/*Azonosítási adatok táblázata*/
+		table.IdentifyDataTable  {
+			border-radius: 12px;
+			border:1px solid #000000;
+			border-collapse:separate;
+			border-spacing: 0px; 
+			background-color: #9aadd4;			
+			/*width: 100%;*/
+			padding: 3px;
+		}
+		table.IdentifyDataTable tr th{
+			border-radius: 12px;
+			border:1px solid #000000;
+			padding: 3px;
+			border-spacing: 0px;
+			font-size: 18px;
+			background-color: #72809c;			
+		}
+		table.IdentifyDataTable tr td {
+			border-bottom: 1px dotted #1b536d;
+			font-weight: normal;
+		}
+
+		/*Tulajdonság adatok táblázata*/
+		table.PropertyDataTable  {
+			border:1px solid #000000;
+			border-radius: 12px;
+			border-collapse:separate;
+			border-spacing: 0px; 
+			background-color: #00948b;			
+			width: 100%;
+			padding: 3px;
+		}
+		table.PropertyDataTable  thead tr th{
+			text-align: center;
+			border-radius: 12px;
+			border:1px solid #000000;
+			padding: 3px;
+			border-spacing: 0px;			
+			font-weight: bold;
+			font-size: 18px;
+			background-color: #1b536d;			
+		}
+		table.PropertyDataTable  tr th{
+			padding: 3px;
+			border-spacing: 0px;
+			border-bottom: 2px solid #1b536d;
+			text-align: left;
+			font-weight: bold;
+			font-size: 16px;
+		}
+
+		table.PropertyDataTable tr td {
+			border-bottom: 1px dotted #1b536d;
+			font-weight: normal;
+		}
+
+		/* Térkép */
+		div.Map {
+			border-radius: 12px;
+			border: 1px solid black; 
+			width: 750px; 
+			height: 420px; 
+			background: #426c62;
+		}
+		td.Map{
+			width: 600px;
+		}

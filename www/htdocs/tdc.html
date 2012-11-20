@@ -2,73 +2,13 @@
 <html>
 	<head>
 
-		<!-- A lekért adatok megjelenítését szabályozza TABLE-ben -->
-		<style type="text/css">
-			table.template, th.template, td.template {				
-				border:1px solid #e5e5e5;
-				border-collapse:collapse;
-				font-family: arial;          
-				font-size: 12;            
-				color: #333333
-			}             
-			th.template, td.template {
-				valign: top;
-				text-align: left;
-			 }          
-			th.template {
-				background-color: #aed7ff
-			}
-			caption.template {
-				border:1px solid #e5e5e5;
-				border-collapse:collapse;
-				font-family: arial;          
-				font-weight: bold;
-				font-size: 14;      
-				text-align: left;      
-				color: #333333;        
-		    }
-
-		body {
-			font-family: arial;
-			font-weight: normal;
-			font-size: 14;
-			background-color:#bbecd3;
-		}
-		table.ControllerTable{
-			border-radius: 12px;
-			background-color: #6666f5;			
-			width: 100%;
-			padding: 3px;
-			border-spacing: 0px;
-		}
-		th.ControllerTable {
-			border-radius: 12px;
-			border:1px solid #e5e5e5;
-			padding: 3px;
-			border-spacing: 0px;
-			font-family: sans-serif;
-			background-color: #0000ee;			
-		}
-		div.Map {
-			border-radius: 12px;
-			border: 1px solid black; 
-			width: 600px; 
-			height: 350px; 
-			background: #426c62;
-		}
-		td.Map{
-			width: 600px;
-		}
-
-        </style>
-
 		<title>TDC</title>
 		<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
-
 		<script type="text/javascript" src="/tdc/proj4js/lib/proj4js.js"></script>
 		<script type="text/javascript" src="/tdc/openlayers/OpenLayers.js"></script> 
 		<script type="text/javascript" src="/tdc/jquery/jquery-1.8.1.js"></script>
 		<script type="text/javascript" src="/tdc/xmlhttprequest/XMLHttpRequest.js"></script>
+		<link rel="stylesheet" href="tdc.css" type="text/css" />
 		<script type="text/javascript">
 
 		// EOV vetület proj4-es definíciója. Figyelem: az EPSG adatbázisban hibásan szerepel, a dátumtranszformáció hiányzik belőle!
@@ -462,17 +402,17 @@
 						//=                                                                          =
 						//================================================
 
-						//Buborkék előkészítése		
-						var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Pont</center><br>";
-						result += "Pont megnevezése: <b>" + identify_point_name + "</b><br>";
-						result += "Pontleírás: <b>" + identify_point_description  + "</b><br>";
-						result += "Pont minőség: <b>" + identify_point_quality + "</b> <br>";
-						result += "Dimenzió: <b>" + identify_point_dimension + "</b><br>";
-						result += "Mérés időpontja: <b>" + identify_point_measured_date + "</b><br>";
-						result += "x: <b>" + identify_point_x + "</b><br>";
-						result += "y: <b>" + identify_point_y + "</b><br>";
+						//Buborék előkészítése	
+						var result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Pont</th></tr>";
+						result += "<tr><td>Pont megnevezése:</td><td><b>" + identify_point_name + "</b></td></tr>";
+						result += "<tr><td>Pontleírás:</td><td><b>" + identify_point_description  + "</b></td></tr>";
+						result += "<tr><td>Pont minőség:</td><td><b>" + identify_point_quality  + "</b></td></tr>";
+						result += "<tr><td>Dimenzió:</td><td><b>" +  identify_point_dimension  + "</b></td></tr>";
+						result += "<tr><td>Mérés időpontja:</td><td><b>" +  identify_point_measured_date  + "</b></td></tr>";
+						result += "<tr><td>x:</td><td><b>" +  identify_point_x  + "</b></td></tr>";
+						result += "<tr><td>y:</td><td><b>" +  identify_point_y  + "</b></td></tr>";
 						if(identify_point_dimension=3){
-							result += "h: <b>" + identify_point_h + "</b>";
+							result += "<tr><td>h:</td><td><b>" +  identify_point_h  + "</b></td></tr>";
 						}
 	
 						//showBobble( result, projPos );
@@ -483,7 +423,7 @@
 						//=                                                 =
 						//================================
 
-						document.getElementById( "objectDataDIV" ).innerHTML = result;
+						document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 						//Akkor a kijelolest allitja
 
@@ -530,12 +470,12 @@
 							//=                                                                          =
 							//================================================
 
-							//Buborkék előkészítése		
-							var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró-üzlethelyiség</center><br>";
-							result += "Város: <b>" + identify_settlement + "</b><br>";
-							result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-							result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-							result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+							//Buborék előkészítése		
+							var result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Aluljáró-üzlethelyiség</th></tr>";
+							result += "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+							result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+							result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+							result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
 	
 							showBobble( result, projPos );
 
@@ -545,7 +485,7 @@
 							//=                                                 =
 							//================================
 
-							document.getElementById( "objectDataDIV" ).innerHTML = result;
+							document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 							//==============================
 							//=                                            =
@@ -661,13 +601,13 @@
 							//=                                                                          =
 							//================================================
 
-							//Buborkék előkészítése		
-							var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró-közös-helyiség</center><br>";
-							result += "Város: <b>" + identify_settlement + "</b><br>";
-							result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-							result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-							result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
-	
+							//Buborék előkészítése	
+							var result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Aluljáró-közös-helyiség</th></tr>";
+							result += "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+							result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+							result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+							result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
+
 							showBobble( result, projPos );
 
 							//==================================
@@ -676,7 +616,7 @@
 							//=                                                 =
 							//================================
 
-							document.getElementById( "objectDataDIV" ).innerHTML = result;
+							document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 							//==============================
 							//=                                            =
@@ -787,14 +727,13 @@
 						//=                                                                          =
 						//================================================
 
-						//Buborkék előkészítése		
-						var result = "Város: <b>" + identify_settlement + "</b><br>";
-						result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-						result += "Szintek száma: <b>" + identify_levels + "</b><br>";
-						result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-						result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
-
-						result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Aluljáró ingatlan</center><br>" + result;
+						//Buborék előkészítése	
+						var result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Aluljáró ingatlan</th></tr>";
+						result += "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+						result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+						result += "<tr><td>Szintek száma:</td><td><b>" +  identify_levels  + "</b></td></tr>";
+						result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+						result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
 
 						showBobble( result, projPos );
 
@@ -804,7 +743,7 @@
 						//=                                                 =
 						//================================
 
-						document.getElementById( "objectDataDIV" ).innerHTML = result;
+						document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 						//===============================
 						//=                                             =
@@ -928,12 +867,12 @@
 							//=                                                                          =
 							//================================================
 
-							//Buborkék előkészítése		
-							var result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Társasházi lakás</center><br>";
-							result += "Város: <b>" + identify_settlement + "</b><br>";
-							result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-							result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-							result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+							//Buborék előkészítése
+							var result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Társasházi lakás</th></tr>";
+							result += "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+							result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+							result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+							result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
 	
 							showBobble( result, projPos );
 
@@ -943,7 +882,7 @@
 							//=                                                 =
 							//================================
 
-							document.getElementById( "objectDataDIV" ).innerHTML = result;
+							document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 							//==============================
 							//=                                            =
@@ -1055,27 +994,27 @@
 						//=                                                                          =
 						//================================================
 
-						//Buborkék előkészítése		
-						var result = "Város: <b>" + identify_settlement + "</b><br>";
-						result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-						result += "Szintek száma: <b>" + identify_levels + "</b><br>";
-						result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-						result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2";
+						//Buborék előkészítése		
+						var result = "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+						result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+						result += "<tr><td>Szintek száma:</td><td><b>" + identify_levels + "</b></td></tr>";
+						result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+						result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
 
 						//Ha "2. Foldreszlet hazzal" volt
 						if( immovable_type == 2 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Épület a földrészlettel</center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' > Épület a földrészlettel </th></tr>" + result;
 
 						//Ha "3. Foldreszlet kulonallo hazzal" volt
 						}else if( immovable_type == 3 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>EÖI-ú épület </center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' > EÖI-ú épület </th></tr>" + result;
 
 						//Ha "4. Tarsas haz" volt
 						}else if( immovable_type == 4 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Társasházi ingatlan</center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' > Társasházi ingatlan </th></tr>" + result;
 
 						}
 
@@ -1087,7 +1026,7 @@
 						//=                                                 =
 						//================================
 
-						document.getElementById( "objectDataDIV" ).innerHTML = result;
+						document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 						//===============================
 						//=                                             =
@@ -1221,32 +1160,32 @@
 						identify_measured_area = $(objs[ i ]).find("identify_measured_area")[0].textContent;
 						identify_cultivation_name = $(objs[ i ]).find("identify_cultivation_name")[0].textContent;
 
-						//Buborkék előkészítése		
-						var result = "Város: <b>" + identify_settlement + "</b><br>";
-						result += "Hrsz: <b>" + identify_hrsz  + "</b><br>";
-						result += "Művelési ág: <b>" + identify_cultivation_name  + "</b><br>";
-						result += "Nyilvántartott terület: <b>" + Math.round(identify_registered_area) + "</b> " + "m2<br>";
-						result += "Mért terület: <b>" + Math.round(identify_measured_area) + "</b> " + "m2<br>";
+						//Buborék előkészítése	
+						var result = "<tr><td>Város:</td><td><b>" + identify_settlement + "</b></td></tr>";
+						result += "<tr><td>Helyrajzi szám:</td><td><b>" + identify_hrsz  + "</b></td></tr>";
+						result += "<tr><td>Művelési ág:</td><td><b>" + identify_cultivation_name + "</b></td></tr>";
+						result += "<tr><td>Nyilvántartott terület:</td><td><b>" + Math.round(identify_registered_area) + "</b> m2</td></tr>";
+						result += "<tr><td>Mért terület: </td><td><b>" + Math.round(identify_measured_area) + "</b> m2</td></tr>";
 
 						//Ha "1. Foldreszlet" volt
 						if( immovable_type == 1 ){
-					
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Földrészlet</center><br>" + result;
+
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' > Földrészlet </th></tr>" + result;
 
 						//Ha "2. Foldreszlet hazzal" volt
 						}else if( immovable_type == 2 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Földrészlet házzal</center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' > Földrészlet házzal </th></tr>" + result;
 
 						//Ha "3. Foldreszlet kulonallo hazzal" volt
 						}else if( immovable_type == 3 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Földrészlet (EÖI-nal a területén)</center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Földrészlet (EÖI-nal a területén)</th></tr>" + result;
 
 						//Ha "4. Tarsas haz" volt
 						}else if( immovable_type == 4 ){
 
-							result = "<center style='font-family: arial; font-size: 14; font-weight: bold'>Földrészlet - társasházi ingatlan</center><br>" + result;
+							result = "<table class='IdentifyDataTable'><tr><th align='center' colspan='2' >Földrészlet - társasházi ingatlan</th></tr>" + result;
 
 						}
 
@@ -1258,7 +1197,7 @@
 						//=                                                 =
 						//================================
 
-						document.getElementById( "objectDataDIV" ).innerHTML = result;
+						document.getElementById( "identifyDataDIV" ).innerHTML = result;
 
 						//==============================
 						//=                                            =
@@ -1352,8 +1291,7 @@
 		//||||||||||||||||||||||||||||||||||||||||||||||||||
 		function showBobble( result, position ){
 
-			if( bubbleSwitcher.checked ){
-				//Eredmeny egy buborekba a kivalasztott ponthoz
+			if( bubbleSwitcher.checked ){				
 				popup = new OpenLayers.Popup.FramedCloud(
 					"chick", 
 					position,
@@ -1363,6 +1301,7 @@
 					true,
 					null
 				);
+
 				//Elhelyezi a buborekot-a terkepen
 				map.addPopup( popup );
 			}
@@ -1396,13 +1335,17 @@
 		function successX3D( data, status, req ){
 
 			if( status =="success")
-				//Link megjelenitese
+				
+				//Link létrehozása
 				var linkText = "<a id='x3dhref' href='" + data + "'>X3D modell</a>";
 				document.getElementById( "X3DLinkDIV" ).innerHTML = linkText;
+	
+				//Engedélyezi a gombot az X3D megjelenítéshez
+				document.getElementById( "3dmodel_selected_button").removeAttribute("disabled");
 
 				//Ha engedélyezem a modell direkt megjelenítését
 				if( x3dModelSwitcher.checked ){
-					window.location=document.getElementById('x3dhref').href;
+					openX3D();
 				}
 			}
 
@@ -1411,6 +1354,13 @@
 		//
 		function errorX3D( data, status, req ){
 			alert( 'Hiba az ajax híváskor: \n' + data.responseText + 'status: ' + status + '\n' + 'req: ' + req.responseText);
+		}
+
+		//
+		// Kinyit egy 3D megjelenítőt
+		//
+		function openX3D(){
+			window.location=document.getElementById('x3dhref').href; 
 		}
 
 
@@ -1464,9 +1414,11 @@
 			//Kezdő paraméterek az Identify layernek
 			identifyLayer.params.visible_building_level=start_building_level;
 			identifyLayer.params.visible_underpass_level=start_underpass_level;
-
 	
 			clearDivs();
+
+			//Tiltja a gombot az X3D megjelenítéshez
+			document.getElementById( "3dmodel_selected_button").setAttribute('disabled','disabled');
 
 			//Beállítom az épület szintválasztót földszintre
 			for( var i=0; i<buildingLevelSelector.length; i++){
@@ -1496,12 +1448,6 @@
 			underpassLevelsLayerSwitcher.checked=true;
 			pointLayerSwitcher.checked=false;
 		
-		}
-
-		function clearAndRedraw(){
-			clearBaloon();
-			clearDivs();	
-			redraw();
 		}
 
 		//
@@ -1536,7 +1482,7 @@
 		// Törli az adatokat a DIV-ekből 
 		//
 		function clearDivs(){
-			document.getElementById( "objectDataDIV" ).innerHTML = "";
+			document.getElementById( "identifyDataDIV" ).innerHTML = "";
 			document.getElementById( "ownerListDIV" ).innerHTML = "";
 			document.getElementById( "projectionPointsListDIV" ).innerHTML = "";
 			document.getElementById( "objectPointsListDIV" ).innerHTML = "";
@@ -1679,13 +1625,12 @@
 			</td>
 
 			<!-- Térkép jobb oldalán látható szekció -->
-			<td valign="top" align="left">
+			<td valign="top" align="left" rowspan="2"> <!-- Lenyúlik az identify data szekciójába -->
 				<table border="0">
-
 					<tr>						
 						<td>
 							<table border="0" class="ControllerTable">
-								<tr><th colspan="3" align="center"  class="ControllerTable">Beállítások</th></td>
+								<tr><th colspan="3">Beállítások</th></td>
 								
 								<!-- Buborék engedélyezésének ki/be kapcsolása -->
 								<tr><td><input type="checkbox" id="bubble_switcher" value="bubble_switcher" unchecked>	Buborék</td> </tr>
@@ -1708,7 +1653,7 @@
 														<option value="-2">-2. Szint</option>
 													</select>
 												</td>
-												<td>Vetületi épületszint:</td>					
+												<td>Vetületi épületszint</td>					
 											</tr>
 											<!-- Vetületen megjelenő aluljárószint vezérlése -->								
 											<tr>
@@ -1719,7 +1664,7 @@
 														<option value="-3">-3. Szint</option>
 													</select>
 												</td>
-												<td>	Vetületi aluljárószint:</td>
+												<td>	Vetületi aluljárószint</td>
 											</tr>
 										</table>
 									<td>
@@ -1728,67 +1673,46 @@
 						</td>
 					<tr>
 
-
 					<!-- Saját Layer-ek ki/be kapcsolását vezérlő szekció -->
 					<tr>
 						<td>
-							<div id="layerSwitchDiv" > 
 								<table  border="0" class="ControllerTable">
-									<tr><th colspan="3" align="center"  class="ControllerTable">Rétegek</th></td>
+									<tr><th colspan="3">Rétegek</th></td>
 									<tr><td colspan="2"><input type="checkbox" id="parcel_layer_switcher" value="parcel_layer_switcher" onchange="layerSwitcher(this)" unchecked> Földrészlet</td>	</tr>
 									<tr><td colspan="2"><input type="checkbox" id="building_layer_switcher" value="building_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Épület</td></tr>
 									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="building_levels_layer_switcher" value="building_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
 									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="building_unit_layer_switcher" value="building_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Lakások</td></tr>
 									<tr><td colspan="2"><input type="checkbox" id="underpass_layer_switcher" value="underpass_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Aluljáró</td></tr>
 									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="underpass_levels_layer_switcher" value="underpass_levels_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Szintek</td></tr>
-									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="underpass_unit_layer_switcher" value="underpass_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Üzlethelyiségek</td></tr>
+									<tr><td colspan="1">&nbsp;&nbsp;</td><td><input type="checkbox" id="underpass_unit_layer_switcher" value="underpass_unit_layer_switcher"  onchange="layerSwitcher(this)" unchecked> Helyiségek</td></tr>
 									<tr><td colspan="2"><input type="checkbox" id="point_layer_switcher" value="point_layer_switcher" onchange="layerSwitcher(this)"  unchecked> Pontok</td></tr>
 								</table>
-							</div>
 						</td>
 					</tr>
 
-					<!-- Layer-ek ki/be kapcsolását vezérlő szekció -->
-<!--					<tr>
-						<td colspan="1">
-							<div id="layerSwitcherDiv" class="olControlLayerSwitcher-"  style="border: 1px solid black;" ></div> 
-						</td>
+					<!-- 3D modell szekció -->
 					<tr>
--->
+						<td>
+							<table  class="ControllerTable">
+								<tr><th>3D modell</th></tr>
+								<tr><td><button type="button" id="3dmodel_radius_button">3D modell</button> <input type="text" name="radius" size="2"/> m sugarú körben </td></tr>
+								<tr><td><button type="button" id="3dmodel_selected_button" onclick="openX3D()" disabled="disabled" >3D modell</button> a kiválasztott objektumról </tr>
+							</table>
+						</td>
+					</td>
+					<tr>
+						<td>
+							<div id="X3DLinkDIV" style="display:none; border: 0px solid black; font-family: arial; font-size: 12; overflow:auto;"></div>
+						</td>
+					</tr>
+
 				</table>
 			</td>
 		</tr>
-		<tr>
-			<td colspan="2">
-<!--				<div id="objectDataDIV" style="border: 1px solid black; height: 100px; width: 600px; font-family: arial; font-size: 12; overflow:auto;"></div> -->
-				<div id="objectDataDIV" style="border: 0px solid black; font-family: arial; font-size: 12; overflow:auto;"></div>
-			</td>			
-		</tr>
-		<tr>
-			<td colspan="2">
-				<div id="X3DLinkDIV" style="border: 0px solid black; font-family: arial; font-size: 12; overflow:auto;"></div>
-			</td>			
-		</tr>
-		<tr>
-		<tr>
-			<td colspan="2">
-<!--				<div id="ownerListDIV" style="border: 1px solid black; height: 100px; width: 600px; overflow:auto;"></div>  -->
-				<div id="ownerListDIV" style="border: 0px solid black; max-height: 100px; overflow:auto;"></div>
-			</td>
-			</td>
-		</tr>
-		<tr>
-			<td colspan="2">			
-<!--				<div id="pointListDIV" style="border: 1px solid black; height: 140px; width: 600px; overflow:auto; "></div> -->
-				<div id="projectionPointsListDIV" style="border: 0px solid black; max-height:140px; overflow:auto; "></div>
-			</td>
-		</tr>
-		<tr>
-			<td colspan="2">			
-				<div id="objectPointsListDIV" style="border: 0px solid black; max-height:140px; overflow:auto; "></div>
-			</td>
-		</tr>
-
+		<tr><td colspan="1"><div id="identifyDataDIV" style="border: 0px solid black; font-family: arial; font-size: 12; overflow:auto;"></div></td></tr>		
+		<tr><td colspan="2"><div id="ownerListDIV" style="border: 0px solid black; max-height: 100px; overflow:auto;"></div></td></td></tr>
+		<tr><td colspan="2"><div id="projectionPointsListDIV" style="border: 0px solid black; max-height:140px; overflow:auto; "></div></td></tr>
+		<tr><td colspan="2"><div id="objectPointsListDIV" style="border: 0px solid black; max-height:140px; overflow:auto; "></div></td></tr>
 	</table>
 
 </body>
