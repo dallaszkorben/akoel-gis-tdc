@@ -553,7 +553,7 @@
 							//=                                     =
 							//=========================
 
-							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+							x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 							//Kijelölés
 							viewUnderpassLayer.params.selected_nid =  identify_nid;
@@ -683,7 +683,7 @@
 							//=                                     =
 							//=========================
 
-							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+							x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 							//Kijelölés
 							viewUnderpassLayer.params.selected_nid =  identify_nid;
@@ -809,7 +809,7 @@
 						//=                                     =
 						//=========================
 
-						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+						x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 						//Kijelölés
 						viewUnderpassLayer.params.selected_nid =  identify_nid;
@@ -949,7 +949,7 @@
 							//=                                     =
 							//=========================
 
-							generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+							x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 							//Kijelölés
 							viewBuildingLayer.params.selected_nid =  identify_nid;
@@ -1121,7 +1121,7 @@
 						//=                                     =
 						//=========================
 
-						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+						x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 						//Kijelölés
 						viewBuildingLayer.params.selected_nid =  identify_nid;
@@ -1266,7 +1266,7 @@
 						//=                                     =
 						//=========================
 
-						generateX3D( identify_name, identify_nid, immovable_type, xy, projPos );
+						x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos );
 
 						//Kijelölés
 						viewParcelLayer.params.selected_nid =  identify_nid;
@@ -1310,58 +1310,110 @@
 		//||||||||||||||||||||||||||||||||||||||||||||||||||||||
 		//|||||||||||||||||||||||||||||||||||||||||||||||||||||
 		//||||||||||                                               |||||||||
-		//|||||||||               X3D gyártása            |||||||||
+		//|||||||||   Egy objektum X3D gyártása   |||||||||
 		//||||||||                                                |||||||||
 		//|||||||||||||||||||||||||||||||||||||||||||||||||||
 		//||||||||||||||||||||||||||||||||||||||||||||||||||
-		function generateX3D( identify_name, identify_nid, immovable_type, xy, projPos ){
+		function x3dOneGenerate( identify_name, identify_nid, immovable_type, xy, projPos ){
 
 			//Egy php script fogja legyartani az x3d fajlt az elkuldott koordinata es kivalasztott objektum alapjan
 			$.ajax({
 				type: "GET",
-				url: "http://localhost/tdc/htdocs/x3dcreator.php",
+				url: "http://localhost/tdc/htdocs/x3d_one_generate.php",
 				contentType: "text/html",
 				dataType: "html",
 				data: { 	selected_name: identify_name, selected_nid: identify_nid, immovable_type: immovable_type, x: xy.x, y: xy.y, lon: projPos.lon, lat: projPos.lat },
 				async:false,
-				success: successX3D,
-				error: errorX3D
+				success: x3dOneSuccess,
+				error: x3dOneError
 			});
 		}
 
 		//
 		//Sikeres X3D gyártás után
 		//
-		function successX3D( data, status, req ){
-
-			if( status =="success")
-				
+		function x3dOneSuccess( data, status, req ){
+			if( status =="success"){				
 				//Link létrehozása
-				var linkText = "<a id='x3dhref' href='" + data + "'>X3D modell</a>";
-				document.getElementById( "X3DLinkDIV" ).innerHTML = linkText;
-	
+				var linkText = "<a id='x3d_one_href' href='" + data + "'>x3d_one_modell</a>";
+				document.getElementById( "x3d_one_link_div" ).innerHTML = linkText;
 				//Engedélyezi a gombot az X3D megjelenítéshez
-				document.getElementById( "3dmodel_selected_button").removeAttribute("disabled");
-
+				document.getElementById( "x3d_one_selected_button").removeAttribute("disabled");
 				//Ha engedélyezem a modell direkt megjelenítését
 				if( x3dModelSwitcher.checked ){
-					openX3D();
+					x3dOneOpen();
 				}
 			}
+		}
 
 		//
 		//Sikertelen X3D gyártás után
 		//
-		function errorX3D( data, status, req ){
+		function x3dOneError( data, status, req ){
 			alert( 'Hiba az ajax híváskor: \n' + data.responseText + 'status: ' + status + '\n' + 'req: ' + req.responseText);
 		}
 
 		//
 		// Kinyit egy 3D megjelenítőt
 		//
-		function openX3D(){
-			window.location=document.getElementById('x3dhref').href; 
+		function x3dOneOpen(){
+			window.location=document.getElementById('x3d_one_href').href; 
 		}
+
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||                                                  |||||||||
+		//||||||||| Minden objektumról X3D gyártás |||||||||
+		//||||||||                                                   |||||||||
+		//|||||||||||||||||||||||||||||||||||||||||||||||||||||
+		//||||||||||||||||||||||||||||||||||||||||||||||||||||
+		function x3dAllGenerate( ){
+
+			var radius = parseInt( document.getElementById( "x3d_all_radius_field").value );
+
+			//Egy php script fogja legyartani az x3d fajlt az elkuldott koordinata es kivalasztott objektum alapjan
+			$.ajax({
+				type: "GET",
+				url: "http://localhost/tdc/htdocs/x3d_all_generate.php",
+				contentType: "text/html",
+				dataType: "html",
+				data: { 	radius: radius, lon: map.center.lon, lat: map.center.lat },
+				async:false,
+				success: x3dAllSuccess,
+				error: x3dAllError
+			});
+		}
+
+		//
+		//Sikeres X3D gyártás után
+		//
+		function x3dAllSuccess( data, status, req ){
+			if( status =="success"){				
+				//Link létrehozása
+				var linkText = "<a id='x3d_all_href' href='" + data + "'>x3d_all_modell</a>";
+				document.getElementById( "x3d_all_link_div" ).innerHTML = linkText;
+				x3dAllOpen();
+			}
+		}
+
+		//
+		//Sikertelen X3D gyártás után
+		//
+		function x3dAllError( data, status, req ){
+			alert( 'Hiba az ajax híváskor: \n' + data.responseText + 'status: ' + status + '\n' + 'req: ' + req.responseText);
+		}
+
+		//
+		// Kinyit egy 3D megjelenítőt
+		//
+		function x3dAllOpen(){
+			window.location=document.getElementById('x3d_all_href').href; 
+		}
+
+
+
+	
+
 
 
 		//
@@ -1416,9 +1468,6 @@
 			identifyLayer.params.visible_underpass_level=start_underpass_level;
 	
 			clearDivs();
-
-			//Tiltja a gombot az X3D megjelenítéshez
-			document.getElementById( "3dmodel_selected_button").setAttribute('disabled','disabled');
 
 			//Beállítom az épület szintválasztót földszintre
 			for( var i=0; i<buildingLevelSelector.length; i++){
@@ -1486,8 +1535,12 @@
 			document.getElementById( "ownerListDIV" ).innerHTML = "";
 			document.getElementById( "projectionPointsListDIV" ).innerHTML = "";
 			document.getElementById( "objectPointsListDIV" ).innerHTML = "";
-			document.getElementById( "X3DLinkDIV" ).innerHTML = "";
+			document.getElementById( "x3d_one_link_div" ).innerHTML = "";
+
+			//Tiltja a gombot az X3DLinkDIV linkhez
+			document.getElementById( "x3d_one_selected_button").setAttribute('disabled','disabled');
 		}
+
 
 		//
 		// Saját layer ki/be kapcsoló vezérlése
@@ -1607,6 +1660,30 @@
 			}
 		}
 
+		//
+		// Ellenőrzi, hogy csak számok kerülnek-e a mezőbe
+		//
+		function numbersonly(e, decimal) {
+			var key;
+			var keychar;
+			if (window.event) {
+				key = window.event.keyCode;
+			}else if (e) {
+				key = e.which;
+			}else {
+				return true;
+			}
+			keychar = String.fromCharCode(key);
+			if ((key==null) || (key==0) || (key==8) ||  (key==9) || (key==13) || (key==27) ) {
+				return true;
+			}else if ((("0123456789").indexOf(keychar) > -1)) {
+				return true;
+			}else if (decimal && (keychar == ".")) {
+				return true;
+			}else
+				return false;
+		}
+
     </script>
 
 </head>
@@ -1620,12 +1697,12 @@
 		<tr>						
 			
 			<!-- Térkép -->
-			<td class="Map" >
+			<td class="Map" valign="top">
 				<div id="mapDiv" class="Map" ></div>
 			</td>
 
 			<!-- Térkép jobb oldalán látható szekció -->
-			<td valign="top" align="left" rowspan="2"> <!-- Lenyúlik az identify data szekciójába -->
+			<td valign="top" align="left" valign="top" rowspan="2"> <!-- Lenyúlik az identify data szekciójába -->
 				<table border="0">
 					<tr>						
 						<td>
@@ -1695,14 +1772,15 @@
 						<td>
 							<table  class="ControllerTable">
 								<tr><th>3D modell</th></tr>
-								<tr><td><button type="button" id="3dmodel_radius_button">3D modell</button> <input type="text" name="radius" size="2"/> m sugarú körben </td></tr>
-								<tr><td><button type="button" id="3dmodel_selected_button" onclick="openX3D()" disabled="disabled" >3D modell</button> a kiválasztott objektumról </tr>
+								<tr><td><button type="button" id="x3d_all_radius_button" onclick="x3dAllGenerate( )">3D modell</button> <input type="text" name="radius" id="x3d_all_radius_field" value="20" size="2" onKeyPress="return numbersonly(event, false)"/> m sugarú körben </td></tr>
+								<tr><td><button type="button" id="x3d_one_selected_button" onclick="x3dOneOpen()" disabled="disabled" >3D modell</button> a kiválasztott objektumról </tr>
 							</table>
 						</td>
 					</td>
 					<tr>
 						<td>
-							<div id="X3DLinkDIV" style="display:none; border: 0px solid black; font-family: arial; font-size: 12; overflow:auto;"></div>
+							<div id="x3d_one_link_div" style="display:none;"></div>
+							<div id="x3d_all_link_div" style="display:none;"></div
 						</td>
 					</tr>
 
