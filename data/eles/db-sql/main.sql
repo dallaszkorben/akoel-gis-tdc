@@ -175,6 +175,21 @@ CREATE TYPE identify_underpass_shared_unit AS (
 ALTER TYPE main.identify_underpass_shared_unit OWNER TO tdc;
 
 --
+-- Name: query_all_x3d; Type: TYPE; Schema: main; Owner: tdc
+--
+
+CREATE TYPE query_all_x3d AS (
+	query_base_geom public.geometry,
+	query_object_name text,
+	query_object_nid bigint,
+	query_object_title text,
+	query_object_x3d text
+);
+
+
+ALTER TYPE main.query_all_x3d OWNER TO tdc;
+
+--
 -- Name: query_owner; Type: TYPE; Schema: main; Owner: tdc
 --
 
@@ -1207,6 +1222,297 @@ $$;
 
 
 ALTER FUNCTION main.identify_underpass_shared_unit() OWNER TO tdc;
+
+--
+-- Name: query_all_x3d(integer, numeric, numeric); Type: FUNCTION; Schema: main; Owner: tdc
+--
+
+CREATE FUNCTION query_all_x3d(selected_radius integer, selected_x numeric, selected_y numeric) RETURNS SETOF query_all_x3d
+    LANGUAGE plpgsql
+    AS $$DECLARE
+  output main.query_all_x3d%rowtype;
+
+  name_parcel text = 'im_parcel';
+  name_building text = 'im_building';
+  name_building_individual_unit text = 'im_building_individual_unit';
+  name_underpass text = 'im_underpass';
+  name_underpass_individual_unit text = 'im_underpass_individual_unit';
+  name_underpass_shared_unit text = 'im_underpass_shared_unit';
+  name_point text = 'sv_survey_point';
+
+  parcel_list bigint[];
+  building_list bigint[];
+  underpass_list bigint[];
+
+  --Kell geometria a MAP fájl számára. Elég neki egy pont is
+  geometry geometry = ST_GeomFromText( 'POINT( ' || selected_x || ' ' || selected_y || ')', -1 );
+
+
+BEGIN
+
+  -----------------------------------------------------------------------------------
+  --                                                                               --
+  -- Ebben a szekcióban a vetület alapján kiválasztom a szóba jöhető objektumokat, --
+  --                                                                               --
+  -----------------------------------------------------------------------------------
+
+  SELECT INTO building_list
+    array_agg(building.nid)
+  FROM
+   main.im_building building,
+   main.tp_face face
+  WHERE 
+    building.projection=face.gid AND
+    ST_DISTANCE( face.geom, geometry ) <= selected_radius;
+
+  SELECT INTO parcel_list
+    array_agg(parcel.nid)
+  FROM
+   main.im_parcel parcel,
+   main.tp_face face
+  WHERE 
+    parcel.projection=face.gid AND
+    ST_DISTANCE( face.geom, geometry ) <= selected_radius;
+
+  SELECT INTO underpass_list
+    array_agg(underpass.nid)
+  FROM
+   main.im_underpass underpass,
+   main.tp_face face
+  WHERE 
+    underpass.projection=face.gid AND
+    ST_DISTANCE( face.geom, geometry ) <= selected_radius;
+
+  -------------------------------------------------------------------------------
+  --                                                                           --
+  -- Most rendelkezésemre áll az összes azonosító                              --
+  --                                                                           --
+  -------------------------------------------------------------------------------
+
+
+  FOR output IN
+    ---------------
+    -- Parcellák --
+    ---------------
+    SELECT DISTINCT
+      geometry AS query_base_geom,
+      name_parcel AS query_object_name,
+      parcel.nid AS query_object_nid,      
+      main.hrsz_concat(parcel.hrsz_main,parcel.hrsz_fraction) AS query_object_title,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_parcel parcel,
+      main.tp_volume volume
+    WHERE
+      parcel.model=volume.gid AND
+      ARRAY[parcel.nid] <@ parcel_list
+
+    UNION
+    -----------------------------------
+    -- Parcellákhoz tartozó pontok  --
+    -----------------------------------
+    SELECT DISTINCT
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_parcel parcel,
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[parcel.nid] <@ parcel_list AND
+      parcel.projection=face.gid AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+    --------------
+    -- Épületek --
+    --------------  
+    SELECT
+      geometry AS query_base_geom,
+      name_building AS query_object_name,
+      building.nid AS query_object_nid,
+      --TODO sajna ez itt nem jo. ki kell deriteni, hogy milyen tipusba tartozik
+      main.hrsz_concat(building.hrsz_main,building.hrsz_fraction)||building.hrsz_eoi  AS x3d_id,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_building building,      
+      main.tp_volume volume,
+      main.tp_face face
+    WHERE
+       face.gid=building.projection AND
+       building.model=volume.gid AND
+       ARRAY[building.nid] <@ building_list
+  
+    UNION
+    ----------------------
+    -- Épületek pontjai --
+    ----------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_building building,            
+       main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[building.nid] <@ building_list AND
+      building.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+
+    ----------------------------------------------------------------
+    -- Building parcellájához tartozó épületek individual unitjai --
+    ----------------------------------------------------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_building_individual_unit AS query_object_name,
+      indunit.nid AS query_object_nid,      
+      main.hrsz_concat(building.hrsz_main,building.hrsz_fraction) || building.hrsz_eoi || '/' || indunit.hrsz_unit  AS x3d_id,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_building building,      
+      main.tp_volume volume,
+      main.im_building_individual_unit indunit
+    WHERE
+      ARRAY[building.nid] <@ building_list AND
+      building.nid=indunit.im_building AND
+      indunit.model=volume.gid
+
+    UNION
+    ---------------
+    -- Aluljárók --
+    ---------------  
+    SELECT
+      geometry AS query_base_geom,
+      name_underpass AS query_object_name,
+      underpass.nid AS query_object_nid,      
+      underpass.hrsz_main::text AS x3d_id,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume
+--      main.tp_face face
+    WHERE
+--      face.gid=underpass.projection AND
+      underpass.model=volume.gid AND
+      ARRAY[underpass.nid] <@ underpass_list
+
+    UNION
+
+   ----------------------
+    -- Aluljárók pontjai --
+    ----------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_underpass underpass,            
+      main.tp_volume volume,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+
+    ----------------------------------------------------------------
+    -- Aluljárók individual unitjai                               --
+    ----------------------------------------------------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_underpass_individual_unit AS query_object_name,
+      indunit.nid AS query_object_nid,      
+      underpass.hrsz_main || '/' || indunit.hrsz_unit  AS x3d_id,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_individual_unit indunit
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.model=volume.gid
+
+    UNION
+-------------------------
+    ----------------------------------------------------------------
+    -- Aluljárók individual unit-jainak pontjai                   --
+    ----------------------------------------------------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_point AS query_object_name,
+      point.nid AS query_object_nid,      
+      point.name  AS x3d_id,
+      ST_X(node.geom) ||' ' || ST_Y(node.geom) || ' ' || ST_Z(node.geom)  AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_individual_unit indunit,
+      main.tp_face face,
+      main.tp_node node,
+      main.sv_survey_point point
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=indunit.im_underpass AND
+      indunit.model=volume.gid AND
+      ARRAY[face.gid] <@ volume.facelist AND
+      ARRAY[node.gid] <@ face.nodelist AND
+      node.gid=point.nid
+
+    UNION
+
+    ----------------------------------------------------------------
+    -- Aluljárók shared unitjai                               --
+    ----------------------------------------------------------------
+    SELECT
+      geometry AS query_base_geom,
+      name_underpass_shared_unit AS query_object_name,
+      sharedunit.nid AS query_object_nid,      
+      underpass.hrsz_main || '/' || sharedunit.hrsz_unit  AS x3d_id,
+      ST_asx3d(volume.geom) AS query_object_x3d
+    FROM
+      main.im_underpass underpass,      
+      main.tp_volume volume,
+      main.im_underpass_shared_unit sharedunit
+    WHERE
+      ARRAY[underpass.nid] <@ underpass_list AND
+      underpass.nid=sharedunit.im_underpass AND
+      sharedunit.model=volume.gid
+
+    LOOP
+    RETURN NEXT output;
+  END LOOP;   
+
+
+ 
+  RETURN; 
+END;
+$$;
+
+
+ALTER FUNCTION main.query_all_x3d(selected_radius integer, selected_x numeric, selected_y numeric) OWNER TO tdc;
 
 --
 -- Name: query_object_points_building(bigint); Type: FUNCTION; Schema: main; Owner: tdc

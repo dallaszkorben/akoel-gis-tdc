@@ -1361,6 +1361,35 @@ MAP
 
 	END #layer
 
+	############################
+	###                                                   ######
+	###   QUERY ALL X3D                      ######
+	###                                                   ######
+	#############################
+	LAYER
+		NAME "query_all_x3d"
+
+		CONNECTIONTYPE postgis
+		CONNECTION "host=localhost password=tdc user=tdc dbname=tdc"			
+		DATA "query_base_geom FROM main.query_all_x3d( %selected_radius%, %selected_x%, %selected_y% )   USING UNIQUE query_object_nid USING srid=2370"
+
+		STATUS OFF
+		TYPE POINT								#Ez fontos!!!
+		TOLERANCE 1
+		PROJECTION
+			"init=epsg:2370"
+		END
+
+	VALIDATION
+		"selected_radius"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy mekkora sugarú körben keressen
+        "selected_x"  "^.+$"						#Ez a parameter mondja meg, hogy mi az x középpontja a keresési távolságnak
+        "selected_y"  "^.+$"						#Ez a parameter mondja meg, hogy mi az x középpontja a keresési távolságnak
+	END
+
+	TEMPLATE 'templates/query_all_x3d.html'
+
+	END #layer
+
  # End of LAYER DEFINITIONS -------------------------------
 
 END # end of map file
