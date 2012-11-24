@@ -101,14 +101,16 @@
 
 					"				<!-- Point Text: ".$query_object_nid." -->\n" .
 					"				<Transform translation='" . $query_object_x3d . "'>\n" .
-					"					<Shape>\n" .
-					"						<Appearance>\n" .
-					"							" . $point_text_normal_color . "\n" .
-					"						</Appearance>\n" .
-					"						<Text string='" .  $query_object_title . "' solid='false'>\n" .
-					"							<FontStyle size='0.5' spacing='0.8' style='BOLD'/>\n" .
-					"						</Text>\n" .
-					"					</Shape>\n" .
+					"					<Billboard axisOfRotation='0 0 0'>\n" .
+					"						<Shape>\n" .
+					"							<Appearance>\n" .
+					"								" . $point_text_normal_color . "\n" .
+					"							</Appearance>\n" .
+					"							<Text string='" .  $query_object_title . "' solid='false'>\n" .
+					"								<FontStyle size='0.5' spacing='0.8' style='BOLD'/>\n" .
+					"							</Text>\n" .
+					"						</Shape>\n" .
+					"					</Billboard>\n" .
 					"				</Transform>";
 
 			//-------------------------------------
@@ -154,6 +156,22 @@
 					"					<Shape>\n" .
 					"						<Appearance>\n".
 					"							". ( ( $query_object_selected == 't' ) ? $building_individual_unit_selected_color : $building_individual_unit_normal_color ) .  "\n" .
+					"						</Appearance>\n" .
+					"						" .  $query_object_x3d . "\n" .
+					"					</Shape>\n" .
+					"				</Transform>" ;
+
+			//-----------------------------------------------------------------
+			//-- Épületek shared unitjai                                                  --
+			//-=---------------------------------------------------------------
+			}else if( $query_object_name == 'im_building_shared_unit' ){
+
+				$x3d_string .= "\n" .
+					"				<!-- Building shared unit: ".$query_object_nid." -->\n" .
+					"				<Transform>\n" .
+					"					<Shape>\n" .
+					"						<Appearance>\n".
+					"							". ( ( $query_object_selected == 't' ) ? $building_shared_unit_selected_color : $building_shared_unit_normal_color ) .  "\n" .
 					"						</Appearance>\n" .
 					"						" .  $query_object_x3d . "\n" .
 					"					</Shape>\n" .
