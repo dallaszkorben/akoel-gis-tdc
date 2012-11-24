@@ -711,7 +711,7 @@ MAP
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-				MINDISTANCE 50
+#				MINDISTANCE 50
 			END #label
 		END #class
 
@@ -773,7 +773,7 @@ MAP
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-				MINDISTANCE 50
+				MINDISTANCE 500
 			END #label
 		END #class
 
@@ -802,7 +802,7 @@ MAP
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-#				MINDISTANCE 500
+				MINDISTANCE 500
 			END #label
 		END #class
 	END #layer
