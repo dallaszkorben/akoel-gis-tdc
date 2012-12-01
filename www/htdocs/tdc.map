@@ -711,7 +711,6 @@ MAP
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-#				MINDISTANCE 50
 			END #label
 		END #class
 
@@ -738,7 +737,6 @@ MAP
 				FONT arial-bold
 				TYPE TRUETYPE
 				POSITION CC					
-#				MINDISTANCE 500
 			END #label
 		END #class
 
@@ -754,7 +752,7 @@ MAP
 		CLASS
 			NAME "ut"
 			MINSCALEDENOM 283			  						#Egy bizonyos nagyítás felett eltünik az út és takarás nélkül látszik az aluljáró
-			EXPRESSION( '[view_cultivation_nid]'='11' ) 
+			EXPRESSION( '[view_cultivation_nid]'='11' AND '1'='2' ) 
 			STYLE
 				COLOR 150 150 150
 			END
@@ -782,7 +780,7 @@ MAP
 		#----------------------------
 		CLASS
 			NAME "normal"
-			EXPRESSION( '[view_cultivation_nid]'!='11' ) 
+			EXPRESSION( '[view_cultivation_nid]'!='11')
 			STYLE
 				COLOR 100 255 100
 			END
@@ -994,7 +992,7 @@ MAP
 		# Épület szintek
 		#--------------------------
 		CLASS
-			EXPRESSION( '%visible_object%'>='2' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_building_levels' ) 
+			EXPRESSION( '%visible_object%'>='2' AND '[view_name]'='%selected_name%' AND '[view_nid]'='%selected_nid%' AND '[view_name]'='im_building_levels') 
 			NAME "building_levels_selected"
 			STYLE
 				COLOR 51 41 126
@@ -1039,7 +1037,7 @@ MAP
 		# Épület		
 		#--------------------------
 		CLASS
-			EXPRESSION( '%visible_object%'>='1' AND '[view_name]'='im_building' ) 
+			EXPRESSION( '%visible_object%'>='1' AND '[view_name]'='im_building') 
 			NAME "building_normal"
 			STYLE
 				COLOR 217 219 88
@@ -1067,7 +1065,7 @@ MAP
 		# Épület szintek
 		#--------------------------
 		CLASS
-			EXPRESSION( '%visible_object%'>='2' AND '[view_name]'='im_building_levels' ) 
+			EXPRESSION( '%visible_object%'>='2' AND '[view_name]'='im_building_levels'  ) 
 			NAME "building_levels_normal"
 			STYLE
 				COLOR 215 152 0
@@ -1092,7 +1090,7 @@ MAP
 		# Individual unit
 		#--------------------------
 		CLASS
-			EXPRESSION( '%visible_object%'>='3' AND '[view_name]'='im_building_individual_unit' ) 
+			EXPRESSION( '%visible_object%'>='3' AND '[view_name]'='im_building_individual_unit'  ) 
 			NAME "building_individual_unit_normal"
 			STYLE
 				COLOR 136 99 11
@@ -1104,6 +1102,30 @@ MAP
 			TEXT '[view_hrsz]'
 			LABEL    
 				ANGLE [view_angle]    #hrsz dolesszoge
+				COLOR 0 0 0                           
+				FONT arial-bold
+				TYPE TRUETYPE
+				POSITION CC			
+				SIZE 11
+			END #label
+		END #class
+
+		#--------------------------
+		# Shared unit
+		#--------------------------
+		CLASS
+			EXPRESSION( '%visible_object%'>='3' AND '[view_name]'='im_building_shared_unit' ) 
+			NAME "building_shared_unit_normal"
+			STYLE
+				COLOR 190 110 40
+			END
+			STYLE
+				OUTLINECOLOR 0 0 0
+				WIDTH 1
+			END			
+			TEXT '[view_hrsz]'		#valójában elnevezés
+			LABEL    
+				ANGLE [view_angle]    #elnevezés dolesszoge
 				COLOR 0 0 0                           
 				FONT arial-bold
 				TYPE TRUETYPE
