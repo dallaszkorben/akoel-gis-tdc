@@ -103,9 +103,6 @@
 			var scaleControl = new OpenLayers.Control.Scale();
 			map.addControl( scaleControl);
 	    
-//		var attribControl = new OpenLayers.Control.Attribution();
-//		map.addControl( attribControl );
-
 			//--------------------------------------------------------------------------------------------
 			// A lathatosagi layerek
 			//
@@ -272,28 +269,6 @@
 			//				               //
 			//=================//
 	    
-			//---------------------------------------------------
-			//Pozicio megjelenitese esemény
-			//---------------------------------------------------
-			map.events.register("click", map, function(e){
-	        
-/*			//Pozicio az ablak koordinata rendszereben
-			var pxPos=map.events.getMousePosition(e);
-	        
-			//Pozicio az aktuális vetületi rendszerben
-			var projPos=map.getLonLatFromPixel(pxPos);
-	        
-			//Pozicio wgs84 foldrajzi koordinatarendszerben
-			var wgs84Pos=projPos.clone().transform(hd72,wgs84);
-	        
-			//Ellenorzeskepp visszaszamolun. termeszetesen ez nem kell
-			var eovPos=projPos.clone().transform(hd72,hd72);
-	                
-			document.getElementById('posDiv').innerHTML="Page position: " + pxPos + "<br>" + "EOV: " + projPos + "<br>" + "WGS84: " + wgs84Pos + "<br>" + "hd72: " + eovPos;
-*/
-
-			}  );
-
 			//---------------------------------
 			//Kivalasztas esemény
 			//---------------------------------

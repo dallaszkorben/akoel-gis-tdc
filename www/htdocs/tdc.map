@@ -752,7 +752,7 @@ MAP
 		CLASS
 			NAME "ut"
 			MINSCALEDENOM 283			  						#Egy bizonyos nagyítás felett eltünik az út és takarás nélkül látszik az aluljáró
-			EXPRESSION( '[view_cultivation_nid]'='11' AND '1'='2' ) 
+			EXPRESSION( '[view_cultivation_nid]'='11'  ) 
 			STYLE
 				COLOR 150 150 150
 			END

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project name="tdc" company="akoel" webLink="http://" view-date="2012-03-01" view-index="0" gantt-divider-location="444" resource-divider-location="300" version="2.0">
+<project name="tdc" company="akoel" webLink="http://" view-date="2012-07-01" view-index="1" gantt-divider-location="608" resource-divider-location="300" version="2.0">
     <description/>
-    <view zooming-state="default:11" id="gantt-chart"/>
+    <view zooming-state="default:8" id="gantt-chart"/>
     <view id="resource-table">
-        <field id="0" name="Név" width="52" order="0"/>
-        <field id="1" name="Alapértelmezett szerepkör" width="47" order="1"/>
+        <field id="0" name="Név" width="50" order="0"/>
+        <field id="1" name="Alapértelmezett szerepkör" width="50" order="1"/>
     </view>
     <!-- -->
     <calendars>
@@ -32,19 +32,30 @@
             <taskproperty id="tpd8" name="coordinator" type="default" valuetype="text"/>
             <taskproperty id="tpd9" name="predecessorsr" type="default" valuetype="text"/>
         </taskproperties>
-        <task id="28" name="Kutatási fázis" color="#ffff00" meeting="false" start="2012-05-03" duration="150" complete="80" expand="true">
-            <task id="0" name="Ismerkedés a 3D kataszter problémájával" color="#00ff66" meeting="false" start="2012-05-03" duration="16" complete="100" expand="true"/>
-            <task id="1" name="CCDM tanulmányozása" color="#00cccc" shape="1,1,1,0,1,1,0,0,1,0,0,0,0,0,0,0" meeting="false" start="2012-05-17" duration="136" complete="73" expand="true"/>
-            <task id="5" name="Rendszer-eszközök kiválasztása" color="#00cccc" shape="1,1,1,0,1,1,0,0,1,0,0,0,0,0,0,0" meeting="false" start="2012-08-01" duration="36" complete="90" expand="true"/>
-            <task id="8" name="Alaprendszer felállítása" color="#8cb6ce" meeting="false" project="true" start="2012-08-01" duration="36" complete="90" expand="true">
-                <task id="10" name="MapServer megismerése" color="#00ff66" meeting="false" start="2012-08-01" duration="36" complete="100" expand="true"/>
-                <task id="20" name="MapGIS-Topologia megismerése" color="#00ff66" meeting="false" start="2012-08-10" duration="14" complete="100" expand="true"/>
-                <task id="13" name="OpenLayers megismerése" color="#8cb6ce" meeting="false" start="2012-08-09" duration="28" complete="91" expand="true"/>
-                <task id="23" name="WebService használatának megfontolása" color="#8cb6ce" meeting="false" start="2012-09-01" duration="4" complete="0" expand="true"/>
+        <task id="28" name="Kutatási fázis" color="#ffff00" meeting="false" start="2012-06-11" duration="92" complete="99" expand="true">
+            <task id="0" name="Ismerkedés a 3D kataszter problémájával" color="#00ff66" meeting="false" start="2012-06-11" duration="15" complete="100" expand="true"/>
+            <task id="725" name="CCDM tanulmánuozása" color="#8cb6ce" meeting="false" start="2012-06-26" duration="13" complete="100" expand="true"/>
+            <task id="5" name="Rendszer-eszközök kiválasztása" color="#00cccc" shape="1,1,1,0,1,1,0,0,1,0,0,0,0,0,0,0" meeting="false" start="2012-07-09" duration="38" complete="100" expand="true">
+                <task id="34" name="Postgresql/PostGIS megismerése" color="#8cb6ce" meeting="false" start="2012-07-09" duration="14" complete="100" expand="true"/>
+                <task id="33" name="Mapserver megismerése" color="#8cb6ce" meeting="false" start="2012-07-23" duration="13" complete="100" expand="true"/>
+                <task id="32" name="OpenLayers megismerése" color="#8cb6ce" meeting="false" start="2012-08-05" duration="11" complete="100" expand="true"/>
             </task>
-            <task id="25" name="Kutatás lezárása" color="#ff0000" meeting="true" start="2012-09-05" duration="1" complete="0" expand="true"/>
+            <task id="41" name="A modell kidolgozása" color="#8cb6ce" meeting="false" start="2012-07-30" duration="42" complete="100" expand="true"/>
+            <task id="681" name="Kutatás lezárása" color="#ff0000" meeting="true" start="2012-09-10" duration="1" complete="0" expand="true"/>
         </task>
-        <task id="31" name="Fejlesztési fázis" color="#8cb6ce" meeting="false" start="2012-09-05" duration="418" complete="0" expand="true"/>
+        <task id="31" name="Fejlesztési fázis" color="#8cb6ce" meeting="false" start="2012-09-10" duration="84" complete="99" expand="true">
+            <task id="36" name="Dolgozat írása" color="#8cb6ce" meeting="false" start="2012-09-10" duration="84" complete="100" expand="true"/>
+            <task id="726" name="Rendszerterv" color="#8cb6ce" meeting="false" start="2012-09-10" duration="2" complete="100" expand="true"/>
+            <task id="35" name="Egy alaprendszer felállítása" color="#8cb6ce" meeting="false" start="2012-09-12" duration="17" complete="100" expand="true"/>
+            <task id="727" name="Adatbázis felállítása a modell alapján" color="#8cb6ce" meeting="false" start="2012-09-29" duration="7" complete="100" expand="true"/>
+            <task id="691" name="Szoftver fejlesztés" color="#8cb6ce" meeting="false" start="2012-09-29" duration="43" complete="100" expand="true"/>
+            <task id="37" name="A rendszer bővítése/adatbázis feltöltése ingatlanokkal" color="#8cb6ce" meeting="false" start="2012-10-03" duration="61" complete="100" expand="true"/>
+            <task id="690" name="Adatbázis lekérdezések írása" color="#8cb6ce" meeting="false" start="2012-10-17" duration="35" complete="100" expand="true"/>
+            <task id="39" name="Honlap felületének kidolgozása" color="#8cb6ce" meeting="false" start="2012-11-08" duration="8" complete="100" expand="true"/>
+            <task id="38" name="3D megjelenítés megoldása" color="#8cb6ce" meeting="false" start="2012-11-13" duration="8" complete="100" expand="true"/>
+            <task id="686" name="Fejlesztés lezárása" color="#ff0000" meeting="true" start="2012-12-02" duration="1" complete="0" expand="true"/>
+        </task>
+        <task id="722" name="Dolgozat rendszerezése, tisztázása, nyomtatás" color="#8cb6ce" meeting="false" start="2012-12-03" duration="5" complete="100" expand="true"/>
     </tasks>
     <resources/>
     <allocations/>
@@ -58,9 +69,9 @@
         <displaycolumn property-id="tpd9" order="-1" width="75" visible="false"/>
         <displaycolumn property-id="tpd1" order="-1" width="75" visible="false"/>
         <displaycolumn property-id="tpd0" order="-1" width="75" visible="false"/>
-        <displaycolumn property-id="tpd3" order="0" width="273" visible="true"/>
-        <displaycolumn property-id="tpd4" order="1" width="88" visible="true"/>
-        <displaycolumn property-id="tpd5" order="2" width="79" visible="true"/>
+        <displaycolumn property-id="tpd3" order="0" width="401" visible="true"/>
+        <displaycolumn property-id="tpd4" order="1" width="79" visible="true"/>
+        <displaycolumn property-id="tpd5" order="2" width="124" visible="true"/>
     </taskdisplaycolumns>
     <previous/>
     <roles roleset-name="Default"/>
