@@ -1372,10 +1372,10 @@ MAP
 		END
 
 	VALIDATION
-		"selected_name"  "^.+$"				#Ez a parameter mondja meg, hogy mi az kivalasztott objektum neve (im_parcel, im_building...)
-		"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy mi az kivalasztott objektum azonositoja
-        "selected_x"  "^.+$"					#Ez a parameter mondja meg, hogy melyik X pozicióban válaszottam ki az elemet
-        "selected_y"  "^.+$"					#Ez a parameter mondja meg, hogy melyik Y pozicióban válaszottam ki az elemet
+		"selected_name"  "^.+$"				#Ez a parameter mondja meg, hogy mi a kivalasztott objektum neve (im_parcel, im_building...)
+		"selected_nid"  "^[0-9]+$"		#Ez a parameter mondja meg, hogy mi a kivalasztott objektum azonositoja
+        "selected_x"  "^.+$"					#Ez a parameter mondja meg, hogy melyik X EOV koordinátában válaszottam ki az elemet
+        "selected_y"  "^.+$"					#Ez a parameter mondja meg, hogy melyik Y EOV koordinátában válaszottam ki az elemet
 		"immovable_type" "^[0-9]+$"	#Ez a parameter mondja meg, hogy milyen típusú az ingatlan. Ez kiderült az identifikáció során
 	END
 
