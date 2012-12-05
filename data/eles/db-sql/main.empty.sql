@@ -3672,8 +3672,7 @@ ALTER FUNCTION main.tp_volume_before() OWNER TO tdc;
 
 CREATE FUNCTION view_building(visible_building_level character varying, visible_object integer) RETURNS SETOF view_building
     LANGUAGE plpgsql
-    AS $$
-DECLARE
+    AS $$DECLARE
   output main.view_building%rowtype;
   object_name_building text ='im_building';
   object_name_building_levels text ='im_building_levels';
@@ -3685,7 +3684,7 @@ BEGIN
   -- belül az EXPRESSION kapcsolót, és nem kapja meg a %visible_object% külső változót. Erre a trükkre volt szükség
   FOR output in
 
-    -- UNDERPASS --
+    -- BUILDING --
     SELECT DISTINCT view_geom, view_name, view_nid, view_angle, 
       CASE ( r.rt_type IS NOT NULL ) 
         WHEN TRUE 
@@ -3737,7 +3736,7 @@ BEGIN
       buildinglevels.projection=face.gid
     UNION
 
-    -- UNDERPASS INDIVIDUAL UNIT --
+    -- BUILDING INDIVIDUAL UNIT --
     SELECT       
       face.geom AS view_geom, 
       object_name_building_individual_unit AS view_name,
@@ -3754,6 +3753,27 @@ BEGIN
       unitlevel.im_levels=visible_building_level AND
       unit.im_building=unitlevel.im_building AND 
       unit.hrsz_unit=unitlevel.hrsz_unit AND 
+      unitlevel.projection=face.gid
+
+    UNION
+
+    -- BUILDING SHARED UNIT --
+    SELECT       
+      face.geom AS view_geom, 
+      object_name_building_shared_unit AS view_name,
+      1 AS view_nid,                    --valamit vissza kell kuldenem de se nid, se oid nincs
+      unit.title_angle AS view_angle,   
+      unit.name::text AS view_hrsz,     --Valamit viszza kell kuldenem, de nincs hrsz-em
+      visible_object,
+      3 AS order_no
+    FROM 
+      main.im_building_shared_unit unit, 
+      main.im_building_shared_unit_level unitlevel, 
+      main.tp_face face 
+    WHERE 
+      unitlevel.im_levels=visible_building_level AND
+      unit.im_building=unitlevel.im_building AND 
+      unit.name=unitlevel.shared_unit_name AND      
       unitlevel.projection=face.gid
 
     ORDER BY order_no
@@ -4236,7 +4256,8 @@ ALTER SEQUENCE im_building_nid_seq OWNED BY im_building.nid;
 CREATE TABLE im_building_shared_unit (
     im_building bigint NOT NULL,
     name text NOT NULL,
-    model bigint
+    model bigint,
+    title_angle numeric(4,2)
 );
 
 
@@ -5539,6 +5560,14 @@ ALTER TABLE ONLY im_building_individual_unit_level
 
 ALTER TABLE ONLY im_building_level_unit
     ADD CONSTRAINT im_building_level_unit_fkey_im_building FOREIGN KEY (im_building) REFERENCES im_building(nid);
+
+
+--
+-- Name: im_building_level_unit_fkey_im_building_levels; Type: FK CONSTRAINT; Schema: main; Owner: tdc
+--
+
+ALTER TABLE ONLY im_building_level_unit
+    ADD CONSTRAINT im_building_level_unit_fkey_im_building_levels FOREIGN KEY (im_building, im_levels) REFERENCES im_building_levels(im_building, im_levels);
 
 
 --
