@@ -1,6 +1,6 @@
-(Master thesis)
-*TDC* is an tree dimensional cadstre modeller which implemented one narrowed part of the *CCDM*<br>
-This software, which was one part of my master thesis, attempts to meet the present hungarian land registration practice which is still two dimensional.
+# TDC (Master thesis)
+*TDC* is a three-dimensional cadastre modeler which implemented one narrowed part of the *CCDM*<br>
+This software, which was one part of my master thesis, attempts to meet the present Hungarian land registration practice which is still *two dimensional*.
 I only used some certain elements of the CCDM model to make the project simpler. The model is able to handle the following objects:
 
   * Land
@@ -36,5 +36,3 @@ I only used some certain elements of the CCDM model to make the project simpler.
   <tr/>
 
 <table/>
-
-
